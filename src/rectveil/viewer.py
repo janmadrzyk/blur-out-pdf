@@ -138,7 +138,7 @@ class PdfViewer(QScrollArea):
 
     def set_scale(self, scale: float, anchor_global: QPoint | None = None) -> None:
         previous_scale = self.scale
-        next_scale = max(0.25, min(3.0, scale))
+        next_scale = max(0.25, min(5.0, scale))
         anchor: tuple[PageCanvas, float, float, QPoint] | None = None
         if anchor_global is not None and self.canvases and next_scale != previous_scale:
             anchor_in_viewport = self.viewport().mapFromGlobal(anchor_global)

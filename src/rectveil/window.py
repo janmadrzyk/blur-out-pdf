@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from math import isfinite, sqrt
 from pathlib import Path
 
 import pymupdf
@@ -190,9 +191,9 @@ class MainWindow(QMainWindow):
         self.zoom_list = QComboBox()
         self.zoom_list.setEditable(True)
         self.zoom_list.setFixedWidth(130)
-        for value in ("50%", "75%", "100%", "125%", "150%", "200%", "300%"):
+        for value in ("50%", "75%", "100%", "125%", "150%", "200%", "300%", "400%", "500%"):
             self.zoom_list.addItem(value)
-        self.zoom_list.addItem(self.t("original"))
+        self.zoom_list.addItem(self.t("actual_size"))
         self.zoom_list.addItem(self.t("fit_page"))
         self.zoom_list.addItem(self.t("fit_width"))
         self.zoom_list.setCurrentText("125%")
@@ -200,7 +201,7 @@ class MainWindow(QMainWindow):
         self.zoom_list.lineEdit().returnPressed.connect(self._zoom_from_combo)
         row.addWidget(self.zoom_list)
         self.zoom_slider = QSlider(Qt.Orientation.Horizontal)
-        self.zoom_slider.setRange(25, 300)
+        self.zoom_slider.setRange(25, 500)
         self.zoom_slider.setValue(125)
         self.zoom_slider.setFixedWidth(120)
         self.zoom_slider.valueChanged.connect(lambda value: self._set_zoom(value / 100))
@@ -262,7 +263,7 @@ class MainWindow(QMainWindow):
                             (self.last_button, "last"), (self.single_button, "single"),
                             (self.continuous_button, "continuous")):
             button.setToolTip(self.t(key))
-        for index, key in ((7, "original"), (8, "fit_page"), (9, "fit_width")):
+        for index, key in ((9, "actual_size"), (10, "fit_page"), (11, "fit_width")):
             self.zoom_list.setItemText(index, self.t(key))
         self.zoom_list.setToolTip(self.t("zoom"))
         self._set_page_number(self.viewer.current_page)
@@ -487,13 +488,31 @@ class MainWindow(QMainWindow):
             width, height = self.document.display_size(self.viewer.current_page)
             self._set_zoom(min((self.viewer.viewport().width() - 35) / width,
                                (self.viewer.viewport().height() - 35) / height))
-        elif choice == self.t("original"):
-            self._set_zoom(1.0)
+        elif choice == self.t("actual_size"):
+            self._set_zoom(self._actual_size_scale())
         else:
             try:
                 self._set_zoom(float(choice.replace("%", "").replace(",", ".")) / 100)
             except ValueError:
                 self._set_zoom(self.viewer.scale)
+
+    def _actual_size_scale(self) -> float:
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen is None:
+            return 96 / 72
+
+        physical_dpi = (float(screen.physicalDotsPerInchX()),
+                        float(screen.physicalDotsPerInchY()))
+        if all(isfinite(dpi) and 30 <= dpi <= 1000 for dpi in physical_dpi):
+            dpi = sqrt(physical_dpi[0] * physical_dpi[1])
+        else:
+            logical_dpi = (float(screen.logicalDotsPerInchX()),
+                           float(screen.logicalDotsPerInchY()))
+            if all(isfinite(value) and 30 <= value <= 1000 for value in logical_dpi):
+                dpi = sqrt(logical_dpi[0] * logical_dpi[1])
+            else:
+                dpi = 96
+        return dpi / 72
 
     def _focus_search(self) -> None:
         self.search_field.setFocus()
