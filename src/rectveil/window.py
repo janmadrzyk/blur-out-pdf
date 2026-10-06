@@ -8,7 +8,7 @@ import pymupdf
 from PySide6.QtCore import QSettings, QStandardPaths, QSize, Qt
 from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
-    QApplication, QComboBox, QFileDialog, QFrame, QHBoxLayout, QInputDialog,
+    QApplication, QComboBox, QDialog, QFileDialog, QFrame, QHBoxLayout, QInputDialog,
     QLineEdit, QMainWindow, QMenu, QMessageBox, QSlider,
     QToolBar, QToolButton, QWidget,
 )
@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 from .appearance import apply_theme, icon, system_dark
 from .document import PdfDocument, STYLES
 from .i18n import default_language, translate
+from .metadata_dialog import MetadataEditorDialog
 from .search import find_matches
 from .viewer import PdfViewer
 
@@ -66,6 +67,8 @@ class MainWindow(QMainWindow):
         self.save_as_action = self.file_menu.addAction("")
         self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
         self.save_as_action.triggered.connect(self.save_as)
+        self.metadata_action = self.file_menu.addAction("")
+        self.metadata_action.triggered.connect(self._edit_metadata)
         self.file_menu.addSeparator()
         self.exit_action = self.file_menu.addAction("")
         self.exit_action.triggered.connect(self.close)
@@ -139,6 +142,8 @@ class MainWindow(QMainWindow):
         self.redact_action = self.edit_toolbar.addAction("")
         self.redact_action.setCheckable(True)
         self.redact_action.toggled.connect(self._toggle_redaction_mode)
+        self.edit_toolbar.addAction(self.metadata_action)
+        self.edit_toolbar.addSeparator()
         self.undo_action = self.edit_toolbar.addAction("")
         self.undo_action.setShortcut(QKeySequence.StandardKey.Undo)
         self.undo_action.triggered.connect(self._undo_redaction)
@@ -212,6 +217,7 @@ class MainWindow(QMainWindow):
         for action, name in ((self.redact_action, "redact"), (self.undo_action, "undo"), (self.left_action, "left"),
                              (self.right_action, "right")):
             action.setIcon(icon(name, color))
+        self.metadata_action.setIcon(icon("metadata", color))
 
     def _on_color_scheme_changed(self, scheme) -> None:
         self.dark = scheme == Qt.ColorScheme.Dark
@@ -220,6 +226,7 @@ class MainWindow(QMainWindow):
     def _translate_ui(self) -> None:
         for target, key in ((self.file_menu, "file"), (self.open_action, "open"),
                             (self.save_action, "save"), (self.save_as_action, "save_as"),
+                            (self.metadata_action, "edit_metadata"),
                             (self.exit_action, "exit"), (self.settings_menu, "settings"),
                             (self.language_menu, "language"), (self.pl_action, "polish"),
                             (self.en_action, "english"), (self.style_menu, "style"),
@@ -251,7 +258,7 @@ class MainWindow(QMainWindow):
 
     def _refresh_enabled(self) -> None:
         has_document = self.document.is_open
-        for control in (self.save_action, self.save_as_action, self.redact_action,
+        for control in (self.save_action, self.save_as_action, self.metadata_action, self.redact_action,
                         self.left_action, self.right_action, self.first_button,
                         self.prev_button, self.page_field, self.next_button, self.last_button,
                         self.single_button, self.continuous_button, self.zoom_list,
@@ -274,6 +281,26 @@ class MainWindow(QMainWindow):
         self.settings.setValue("redaction_style", style)
         for name, action in self.style_actions.items():
             action.setChecked(name == style)
+
+    def _edit_metadata(self) -> None:
+        if not self.document.is_open:
+            return
+        dialog = MetadataEditorDialog(
+            self,
+            self.t,
+            self.document.metadata_values(),
+            self.document.technical_metadata(),
+            self.document.xml_metadata_text(),
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        self.document.apply_metadata_edits(
+            dialog.standard_values,
+            dialog.updated_xmp_xml,
+            dialog.clear_all_requested,
+        )
+        self._update_title()
+        self.statusBar().showMessage(self.t("metadata_applied"))
 
     def _toggle_redaction_mode(self, enabled: bool) -> None:
         self.viewer.redaction_mode = enabled

@@ -10,6 +10,8 @@ import tempfile
 
 import pymupdf
 
+from .metadata import METADATA_FIELDS
+
 
 STYLES = ("black", "fine", "coarse")
 
@@ -27,6 +29,9 @@ class PdfDocument:
         self.pdf: pymupdf.Document | None = None
         self.redactions: list[Redaction] = []
         self.rotations: dict[int, int] = {}
+        self._metadata_cleared = False
+        self._metadata_overrides: dict[str, str] = {}
+        self._xml_metadata_override: str | None = None
 
     @property
     def is_open(self) -> bool:
@@ -34,7 +39,8 @@ class PdfDocument:
 
     @property
     def dirty(self) -> bool:
-        return bool(self.redactions or self.rotations)
+        return bool(self.redactions or self.rotations or self._metadata_cleared
+                    or self._metadata_overrides or self._xml_metadata_override is not None)
 
     @property
     def page_count(self) -> int:
@@ -58,6 +64,9 @@ class PdfDocument:
         self.path = Path(path)
         self.redactions.clear()
         self.rotations.clear()
+        self._metadata_cleared = False
+        self._metadata_overrides.clear()
+        self._xml_metadata_override = None
         return True
 
     def close(self) -> None:
@@ -67,6 +76,58 @@ class PdfDocument:
         self.path = None
         self.redactions.clear()
         self.rotations.clear()
+        self._metadata_cleared = False
+        self._metadata_overrides.clear()
+        self._xml_metadata_override = None
+
+    def metadata_values(self) -> dict[str, str]:
+        if self.pdf is None:
+            return {key: "" for key in METADATA_FIELDS}
+        source = self.pdf.metadata or {}
+        if self._metadata_cleared:
+            values = {key: "" for key in METADATA_FIELDS}
+        else:
+            values = {key: self._metadata_text(source.get(key)) for key in METADATA_FIELDS}
+        values.update(self._metadata_overrides)
+        return values
+
+    def technical_metadata(self) -> dict[str, str]:
+        if self.pdf is None:
+            return {}
+        source = self.pdf.metadata or {}
+        return {key: self._metadata_text(source.get(key)) for key in ("format", "encryption")}
+
+    def xml_metadata_text(self) -> str:
+        if self._xml_metadata_override is not None:
+            return self._xml_metadata_override
+        return self.pdf.get_xml_metadata() if self.pdf is not None else ""
+
+    def apply_metadata_edits(
+        self,
+        values: dict[str, str],
+        xml_metadata: str | None = None,
+        clear_all: bool = False,
+    ) -> None:
+        if self.pdf is None:
+            raise RuntimeError("No PDF is open")
+        if clear_all:
+            self._metadata_cleared = True
+        original = self.pdf.metadata or {}
+        if self._metadata_cleared:
+            self._metadata_overrides = {
+                key: value for key, value in values.items()
+                if key in METADATA_FIELDS and value != ""
+            }
+        else:
+            self._metadata_overrides = {
+                key: value for key, value in values.items()
+                if key in METADATA_FIELDS and value != self._metadata_text(original.get(key))
+            }
+        if clear_all:
+            xml_metadata = xml_metadata if xml_metadata is not None else ""
+        if xml_metadata is not None:
+            original_xml = self.pdf.get_xml_metadata()
+            self._xml_metadata_override = None if xml_metadata == original_xml and not self._metadata_cleared else xml_metadata
 
     def page(self, index: int) -> pymupdf.Page:
         if self.pdf is None:
@@ -167,6 +228,21 @@ class PdfDocument:
                     remove_links=True, reset_fields=True, reset_responses=True,
                     thumbnails=True, redactions=False,
                 )
+            if self._metadata_cleared:
+                # Removing the whole Info dictionary also drops vendor-specific keys.
+                copy.xref_set_key(-1, "Info", "null")
+                copy.del_xml_metadata()
+                if self._metadata_overrides:
+                    copy.set_metadata(self._metadata_overrides)
+            elif self._metadata_overrides:
+                metadata = {} if self.redactions else dict(copy.metadata or {})
+                metadata.update(self._metadata_overrides)
+                copy.set_metadata(metadata)
+            if self._xml_metadata_override is not None:
+                if self._xml_metadata_override:
+                    copy.set_xml_metadata(self._xml_metadata_override)
+                else:
+                    copy.del_xml_metadata()
             with tempfile.NamedTemporaryFile(suffix=".pdf", prefix="rectveil-", dir=destination.parent, delete=False) as handle:
                 temporary = Path(handle.name)
             copy.save(str(temporary), garbage=4, clean=True, deflate=True, encryption=pymupdf.PDF_ENCRYPT_NONE)
@@ -175,6 +251,16 @@ class PdfDocument:
             try:
                 if verification.page_count != self.page_count:
                     raise RuntimeError("Saved PDF has an unexpected page count")
+                if self._metadata_cleared and not self._metadata_overrides:
+                    if verification.xref_get_key(-1, "Info")[0] != "null":
+                        raise RuntimeError("Metadata remains in the saved PDF")
+                for key, expected in self._metadata_overrides.items():
+                    actual = self._metadata_text((verification.metadata or {}).get(key))
+                    if actual != expected:
+                        raise RuntimeError("Metadata was not saved correctly")
+                if self._metadata_cleared or self._xml_metadata_override == "":
+                    if verification.get_xml_metadata():
+                        raise RuntimeError("XML metadata remains in the saved PDF")
                 for redaction in self.redactions:
                     area = pymupdf.Rect(redaction.rect)
                     for block in verification[redaction.page_index].get_text("rawdict")["blocks"]:
@@ -201,6 +287,10 @@ class PdfDocument:
             if temporary and temporary.exists():
                 temporary.unlink()
         self.open(destination)
+
+    @staticmethod
+    def _metadata_text(value: object) -> str:
+        return "" if value is None or str(value).lower() == "none" else str(value)
 
     @staticmethod
     def _draw_grain(page: pymupdf.Page, redaction: Redaction) -> None:
