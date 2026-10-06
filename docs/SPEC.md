@@ -31,7 +31,7 @@ The product name is provisional. Candidates for the final name: **Rectveil** (cu
 
 Use native Qt widgets with a restrained Windows-style palette: light surfaces `#ffffff/#f3f5f8`, dark surfaces `#171b22/#222832`, blue `#2d77bf` for active controls, and a single 24 px stroke-icon family. All controls have text or tooltips. The top menu has File and Settings; the search field sits at the right, following the supplied screenshot's field, arrows and option menu. The editing toolbar can be hidden. The bottom bar centers page navigation and places page mode and zoom on the right. The two requested page-mode icons currently mean single and continuous; facing modes are deferred until their behavior is implemented.
 
-The operating-system color scheme is read when the window opens. A future slice should respond live to theme changes. The final program icon is pending user artwork.
+The operating-system color scheme is read when the window opens and updated when Windows reports a theme change. The final program icon is pending user artwork.
 
 ## Packaging and licensing
 

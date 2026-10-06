@@ -10,7 +10,7 @@ Rectveil is a small, offline Windows PDF reader focused on drawing rectangular r
 - Save or Save as a fully rewritten PDF. Text intersecting the area is removed with PyMuPDF redactions; overlapping image pixels and vector content are removed. On a redaction save, the exporter also strips common hidden data, including metadata, embedded files, JavaScript, links and form responses.
 - Choose black, fine-grain or coarse-grain covering. Grain is generated independently of the original content; it is not a blur of private pixels.
 - Rotate pages, search text, navigate pages, and control zoom from the percentage box and slider.
-- Polish on Polish systems; English elsewhere. Language can be changed in Settings. The UI follows the operating system's light/dark theme at launch.
+- Polish on Polish systems; English elsewhere. Language can be changed in Settings. The UI follows the operating system's light/dark theme, including changes while the app is open.
 
 ## Run from source
 
