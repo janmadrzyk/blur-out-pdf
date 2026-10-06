@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pymupdf
-from PySide6.QtCore import QSettings, QSize, Qt
+from PySide6.QtCore import QSettings, QStandardPaths, QSize, Qt
 from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QFileDialog, QFrame, QHBoxLayout, QInputDialog,
@@ -304,10 +304,30 @@ class MainWindow(QMainWindow):
         self.viewer.refresh_page(index)
         self._update_title()
 
+    def _initial_directory(self, setting_key: str, fallback: str | Path | None = None) -> str:
+        remembered_value = self.settings.value(setting_key, "", type=str)
+        if remembered_value:
+            remembered = Path(remembered_value)
+            if remembered.is_dir():
+                return str(remembered)
+
+        if fallback is not None:
+            candidate = Path(fallback)
+            if candidate.is_file():
+                candidate = candidate.parent
+            if candidate.is_dir():
+                return str(candidate)
+
+        documents = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation))
+        if documents.is_dir():
+            return str(documents)
+        return str(Path.home())
+
     def open_dialog(self) -> None:
         if not self._confirm_discard():
             return
-        path, _ = QFileDialog.getOpenFileName(self, self.t("open_pdf"), "", self.t("pdf_filter"))
+        initial_directory = self._initial_directory("last_open_directory")
+        path, _ = QFileDialog.getOpenFileName(self, self.t("open_pdf"), initial_directory, self.t("pdf_filter"))
         if path:
             self.open_path(path)
 
@@ -322,6 +342,7 @@ class MainWindow(QMainWindow):
         except Exception as error:
             QMessageBox.critical(self, self.t("error"), self.t("open_error", error=error))
             return
+        self.settings.setValue("last_open_directory", str(Path(path).resolve().parent))
         self.viewer.current_page = 0
         self.viewer.cache.clear()
         self.viewer.matches.clear()
@@ -340,7 +361,8 @@ class MainWindow(QMainWindow):
     def save_as(self) -> bool:
         if not self.document.is_open:
             return False
-        suggested = str(self.document.path.with_name(self.document.path.stem + "-redacted.pdf"))
+        initial_directory = self._initial_directory("last_save_directory", self.document.path.parent)
+        suggested = str(Path(initial_directory) / f"{self.document.path.stem}-redacted.pdf")
         path, _ = QFileDialog.getSaveFileName(self, self.t("save_pdf"), suggested, self.t("pdf_filter"))
         if not path:
             return False
@@ -354,6 +376,7 @@ class MainWindow(QMainWindow):
         except Exception as error:
             QMessageBox.critical(self, self.t("error"), self.t("save_error", error=error))
             return False
+        self.settings.setValue("last_save_directory", str(Path(path).resolve().parent))
         self.viewer.cache.clear()
         self.viewer.rebuild()
         self._toggle_redaction_mode(self.redact_action.isChecked())
