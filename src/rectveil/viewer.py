@@ -6,7 +6,7 @@ from collections import OrderedDict
 
 import pymupdf
 from PySide6.QtCore import QPoint, QRect, Qt, Signal
-from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPen, QPixmap
+from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPen, QPixmap, QWheelEvent
 from PySide6.QtWidgets import QScrollArea, QVBoxLayout, QWidget
 
 from .document import PdfDocument
@@ -83,10 +83,16 @@ class PageCanvas(QWidget):
                 self.redaction_drawn.emit(self.index, rect)
             event.accept()
 
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        if self.viewer.zoom_with_wheel(event):
+            return
+        super().wheelEvent(event)
+
 
 class PdfViewer(QScrollArea):
     current_page_changed = Signal(int)
     redaction_drawn = Signal(int, object)
+    zoom_requested = Signal(float)
 
     def __init__(self, document: PdfDocument) -> None:
         super().__init__()
@@ -136,6 +142,22 @@ class PdfViewer(QScrollArea):
         for canvas in self.canvases:
             canvas.resize_to_page()
             canvas.update()
+
+    def zoom_with_wheel(self, event: QWheelEvent) -> bool:
+        if not event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            return False
+        delta = event.angleDelta().y() / 120.0
+        if not delta:
+            delta = event.pixelDelta().y() / 80.0
+        if delta:
+            self.zoom_requested.emit(self.scale * (1.15 ** delta))
+        event.accept()
+        return True
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        if self.zoom_with_wheel(event):
+            return
+        super().wheelEvent(event)
 
     def get_page_image(self, index: int) -> QPixmap | None:
         if not self.document.is_open:

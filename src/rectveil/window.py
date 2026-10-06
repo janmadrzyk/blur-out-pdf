@@ -35,6 +35,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.viewer)
         self.viewer.redaction_drawn.connect(self._add_redaction)
         self.viewer.current_page_changed.connect(self._set_page_number)
+        self.viewer.zoom_requested.connect(self._set_zoom)
         self.matches: list[tuple[int, pymupdf.Rect]] = []
         self.match_index = -1
         self._make_menu()
