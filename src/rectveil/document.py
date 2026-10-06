@@ -277,6 +277,32 @@ class PdfDocument:
                     graphics=pymupdf.PDF_REDACT_LINE_ART_REMOVE_IF_TOUCHED,
                     text=pymupdf.PDF_REDACT_TEXT_REMOVE,
                 )
+                areas = [pymupdf.Rect(item.rect) for item in self.redactions if item.page_index == index]
+                # Some PDFs use unusual text transforms. If MuPDF's first pass
+                # leaves a character whose box still overlaps a target area,
+                # redact that character's complete box in a second pass.
+                for _ in range(3):
+                    remaining = self._text_boxes_intersecting(page, areas)
+                    if not remaining:
+                        break
+                    for box in remaining:
+                        expanded = pymupdf.Rect(box.x0 - 0.25, box.y0 - 0.25,
+                                                box.x1 + 0.25, box.y1 + 0.25) & page.cropbox
+                        if not expanded.is_empty:
+                            page.add_redact_annot(expanded, fill=(0, 0, 0), cross_out=False)
+                    page.apply_redactions(
+                        images=pymupdf.PDF_REDACT_IMAGE_PIXELS,
+                        graphics=pymupdf.PDF_REDACT_LINE_ART_REMOVE_IF_TOUCHED,
+                        text=pymupdf.PDF_REDACT_TEXT_REMOVE,
+                    )
+                remaining = self._text_boxes_intersecting(page, areas)
+                if remaining:
+                    first = remaining[0]
+                    bounds = ", ".join(f"{value:.2f}" for value in first)
+                    raise RuntimeError(
+                        f"Text remains in a redacted area on page {index + 1} "
+                        f"({len(remaining)} character(s); first bounds: {bounds})"
+                    )
             for redaction in self.redactions:
                 if redaction.style != "black":
                     self._draw_grain(copy.load_page(redaction.page_index), redaction)
@@ -313,16 +339,16 @@ class PdfDocument:
                 if self._metadata_cleared or self._xml_metadata_override == "":
                     if verification.get_xml_metadata():
                         raise RuntimeError("XML metadata remains in the saved PDF")
-                for redaction in self.redactions:
-                    area = pymupdf.Rect(redaction.rect)
-                    for block in verification[redaction.page_index].get_text("rawdict")["blocks"]:
-                        for line in block.get("lines", []):
-                            for span in line.get("spans", []):
-                                for char in span.get("chars", []):
-                                    if pymupdf.Rect(char["bbox"]).intersects(area):
-                                        raise RuntimeError(
-                                            f"Text remains in a redacted area on page {redaction.page_index + 1}"
-                                        )
+                for index in sorted({item.page_index for item in self.redactions}):
+                    areas = [pymupdf.Rect(item.rect) for item in self.redactions if item.page_index == index]
+                    remaining = self._text_boxes_intersecting(verification[index], areas)
+                    if remaining:
+                        first = remaining[0]
+                        bounds = ", ".join(f"{value:.2f}" for value in first)
+                        raise RuntimeError(
+                            f"Text remains in a redacted area on page {index + 1} "
+                            f"({len(remaining)} character(s); first bounds: {bounds})"
+                        )
             finally:
                 verification.close()
             replacing_open_file = self.path is not None and self.path.resolve() == destination
@@ -345,6 +371,19 @@ class PdfDocument:
     @staticmethod
     def _metadata_text(value: object) -> str:
         return "" if value is None or str(value).lower() == "none" else str(value)
+
+    @staticmethod
+    def _text_boxes_intersecting(page: pymupdf.Page, areas: list[pymupdf.Rect]) -> list[pymupdf.Rect]:
+        boxes: dict[tuple[float, float, float, float], pymupdf.Rect] = {}
+        for block in page.get_text("rawdict")["blocks"]:
+            for line in block.get("lines", []):
+                for span in line.get("spans", []):
+                    for char in span.get("chars", []):
+                        box = pymupdf.Rect(char["bbox"])
+                        if any(box.intersects(area) for area in areas):
+                            key = tuple(round(value, 3) for value in box)
+                            boxes[key] = box
+        return list(boxes.values())
 
     @staticmethod
     def _draw_grain(page: pymupdf.Page, redaction: Redaction) -> None:
