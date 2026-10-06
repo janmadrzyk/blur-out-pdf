@@ -6,6 +6,8 @@ from PySide6.QtCore import QLocale
 STRINGS = {
     "en": {
         "file": "File", "open": "Open…", "save": "Save", "save_as": "Save as…",
+        "no_document_tab": "No document", "open_new_tab": "Open PDF in a new tab",
+        "save_target_open": "That file is already open in another tab.",
         "edit_menu": "Edit", "undo": "Undo", "redo": "Redo",
         "edit_metadata": "Edit metadata…",
         "metadata_title": "Title", "metadata_author": "Author", "metadata_subject": "Subject",
@@ -47,6 +49,8 @@ STRINGS = {
     },
     "pl": {
         "file": "Plik", "open": "Otwórz…", "save": "Zapisz", "save_as": "Zapisz jako…",
+        "no_document_tab": "Brak dokumentu", "open_new_tab": "Otwórz PDF w nowej karcie",
+        "save_target_open": "Ten plik jest już otwarty w innej karcie.",
         "edit_menu": "Edycja", "undo": "Cofnij", "redo": "Ponów",
         "edit_metadata": "Edytuj metadane…",
         "metadata_title": "Tytuł", "metadata_author": "Autor", "metadata_subject": "Temat",

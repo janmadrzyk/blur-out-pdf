@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from math import isfinite, sqrt
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QFileDialog, QFrame, QHBoxLayout, QInputDialog,
     QLineEdit, QMainWindow, QMenu, QMessageBox, QSlider,
-    QToolBar, QToolButton, QWidget,
+    QTabBar, QTabWidget, QToolBar, QToolButton, QWidget,
 )
 
 from .appearance import apply_theme, icon, system_dark
@@ -20,6 +21,15 @@ from .i18n import default_language, translate
 from .metadata_dialog import MetadataEditorDialog
 from .search import find_matches
 from .viewer import PdfViewer
+
+
+@dataclass
+class DocumentTab:
+    document: PdfDocument
+    viewer: PdfViewer
+    matches: list[tuple[int, pymupdf.Rect]] = field(default_factory=list)
+    match_index: int = -1
+    search_text: str = ""
 
 
 class MainWindow(QMainWindow):
@@ -32,22 +42,37 @@ class MainWindow(QMainWindow):
         if self.style_name not in STYLES:
             self.style_name = "black"
         self.dark = system_dark(QApplication.instance())
-        self.document = PdfDocument()
-        self.viewer = PdfViewer(self.document)
-        self.setCentralWidget(self.viewer)
-        self.viewer.redaction_drawn.connect(self._add_redaction)
-        self.viewer.redaction_edited.connect(self._redaction_edited)
-        self.viewer.current_page_changed.connect(self._set_page_number)
-        self.viewer.zoom_requested.connect(self._set_zoom)
+        self._placeholder_document = PdfDocument()
+        self._placeholder_viewer = PdfViewer(self._placeholder_document)
+        self.document = self._placeholder_document
+        self.viewer = self._placeholder_viewer
+        self._document_tabs: dict[PdfViewer, DocumentTab] = {}
+        self._active_tab: DocumentTab | None = None
+        self.tabs = QTabWidget(self)
+        self.tabs.setDocumentMode(True)
+        self.tabs.setMovable(True)
+        self.tabs.setTabsClosable(True)
+        self.tabs.addTab(self._placeholder_viewer, self.t("no_document_tab"))
+        self.tabs.tabBar().setTabButton(0, QTabBar.ButtonPosition.RightSide, None)
+        self.tabs.tabCloseRequested.connect(self.close_tab)
+        self.new_tab_button = QToolButton(self.tabs)
+        self.new_tab_button.setText("+")
+        self.new_tab_button.setAutoRaise(True)
+        self.new_tab_button.clicked.connect(self.open_dialog)
+        self.tabs.setCornerWidget(self.new_tab_button, Qt.Corner.TopRightCorner)
+        self.setCentralWidget(self.tabs)
+        self._wire_viewer(self._placeholder_viewer)
         self.matches: list[tuple[int, pymupdf.Rect]] = []
         self.match_index = -1
         self._make_menu()
         self._make_toolbar()
         self._make_bottom_bar()
+        self.tabs.currentChanged.connect(self._on_tab_changed)
         self._translate_ui()
         self._apply_theme()
         QApplication.instance().styleHints().colorSchemeChanged.connect(self._on_color_scheme_changed)
         self._refresh_enabled()
+        self._on_tab_changed(self.tabs.currentIndex())
         self.setMinimumSize(760, 520)
         self.resize(1180, 800)
         self.statusBar().showMessage(self.t("ready"))
@@ -56,6 +81,75 @@ class MainWindow(QMainWindow):
 
     def t(self, key: str, **values: object) -> str:
         return translate(self.language, key, **values)
+
+    def _wire_viewer(self, viewer: PdfViewer) -> None:
+        viewer.redaction_drawn.connect(self._add_redaction)
+        viewer.redaction_edited.connect(self._redaction_edited)
+        viewer.current_page_changed.connect(self._set_page_number)
+        viewer.zoom_requested.connect(self._set_zoom)
+
+    def _on_tab_changed(self, index: int) -> None:
+        widget = self.tabs.widget(index) if index >= 0 else None
+        context = self._document_tabs.get(widget) if widget is not None else None
+        if context is None:
+            self._active_tab = None
+            self.document = self._placeholder_document
+            self.viewer = self._placeholder_viewer
+            self.matches = []
+            self.match_index = -1
+            self.search_field.blockSignals(True)
+            self.search_field.clear()
+            self.search_field.blockSignals(False)
+            self.viewer.matches = []
+        else:
+            self._active_tab = context
+            self.document = context.document
+            self.viewer = context.viewer
+            self.matches = context.matches
+            self.match_index = context.match_index
+            self.viewer.matches = context.matches
+            self.search_field.blockSignals(True)
+            self.search_field.setText(context.search_text)
+            self.search_field.blockSignals(False)
+        self.viewer.redaction_mode = self.redact_action.isChecked()
+        for canvas in self.viewer.canvases:
+            canvas.setCursor(
+                Qt.CursorShape.CrossCursor if self.viewer.redaction_mode else Qt.CursorShape.ArrowCursor,
+            )
+            canvas.update()
+        self._set_page_number(self.viewer.current_page)
+        self.single_button.setChecked(self.viewer.layout_mode == "single")
+        self.continuous_button.setChecked(self.viewer.layout_mode == "continuous")
+        percent = round(self.viewer.scale * 100)
+        self.zoom_slider.blockSignals(True)
+        self.zoom_slider.setValue(percent)
+        self.zoom_slider.blockSignals(False)
+        self.zoom_list.blockSignals(True)
+        self.zoom_list.setCurrentText(f"{percent}%")
+        self.zoom_list.blockSignals(False)
+        self._refresh_enabled()
+        self._update_title()
+        self.statusBar().showMessage(
+            str(self.document.path) if self.document.path else self.t("ready"),
+        )
+
+    def close_tab(self, index: int) -> None:
+        widget = self.tabs.widget(index)
+        context = self._document_tabs.get(widget)
+        if context is None:
+            return
+        self.tabs.setCurrentIndex(index)
+        if not self._confirm_discard():
+            return
+        self._document_tabs.pop(context.viewer, None)
+        context.document.close()
+        self.tabs.removeTab(index)
+        context.viewer.deleteLater()
+        if not self._document_tabs:
+            placeholder_index = self.tabs.addTab(self._placeholder_viewer, self.t("no_document_tab"))
+            self.tabs.tabBar().setTabButton(placeholder_index, QTabBar.ButtonPosition.RightSide, None)
+            self.tabs.setCurrentIndex(placeholder_index)
+        self._refresh_enabled()
 
     def _make_menu(self) -> None:
         bar = self.menuBar()
@@ -258,6 +352,9 @@ class MainWindow(QMainWindow):
         self.pl_action.setChecked(self.language == "pl")
         self.en_action.setChecked(self.language == "en")
         self.search_field.setPlaceholderText(self.t("find_placeholder"))
+        self.new_tab_button.setToolTip(self.t("open_new_tab"))
+        if self.tabs.indexOf(self._placeholder_viewer) >= 0:
+            self.tabs.setTabText(self.tabs.indexOf(self._placeholder_viewer), self.t("no_document_tab"))
         for button, key in ((self.search_prev, "previous_match"), (self.search_next, "next_match"),
                             (self.search_options, "search_options"), (self.search_clear, "close_search"), (self.first_button, "first"),
                             (self.prev_button, "previous"), (self.next_button, "next"),
@@ -282,8 +379,16 @@ class MainWindow(QMainWindow):
         self._set_page_number(self.viewer.current_page)
 
     def _update_title(self) -> None:
-        name = self.document.path.name if self.document.path else "Rectveil"
-        self.setWindowTitle(f"{'*' if self.document.dirty else ''}{name} — Rectveil")
+        if self._active_tab is None or self.document.path is None:
+            self.setWindowTitle("Rectveil")
+            return
+        name = self.document.path.name
+        prefix = "*" if self.document.dirty else ""
+        index = self.tabs.indexOf(self.viewer)
+        if index >= 0:
+            self.tabs.setTabText(index, f"{prefix}{name}")
+            self.tabs.setTabToolTip(index, str(self.document.path))
+        self.setWindowTitle(f"{prefix}{name} — Rectveil")
 
     def set_language(self, language: str) -> None:
         self.language = language
@@ -386,35 +491,48 @@ class MainWindow(QMainWindow):
         return str(Path.home())
 
     def open_dialog(self) -> None:
-        if not self._confirm_discard():
-            return
         initial_directory = self._initial_directory("last_open_directory")
-        path, _ = QFileDialog.getOpenFileName(self, self.t("open_pdf"), initial_directory, self.t("pdf_filter"))
-        if path:
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, self.t("open_pdf"), initial_directory, self.t("pdf_filter"),
+        )
+        for path in paths:
             self.open_path(path)
 
     def open_path(self, path: str) -> None:
+        resolved_path = Path(path).resolve()
+        for index in range(self.tabs.count()):
+            widget = self.tabs.widget(index)
+            context = self._document_tabs.get(widget)
+            if context and context.document.path and context.document.path.resolve() == resolved_path:
+                self.tabs.setCurrentIndex(index)
+                return
+
+        document = PdfDocument()
         try:
-            opened = self.document.open(path)
+            opened = document.open(path)
             if not opened:
                 password, accepted = QInputDialog.getText(self, self.t("password"), self.t("password_prompt"), QLineEdit.EchoMode.Password)
                 if not accepted:
+                    document.close()
                     return
-                self.document.open(path, password)
+                if not document.open(path, password):
+                    raise ValueError(self.t("incorrect_password"))
         except Exception as error:
+            document.close()
             QMessageBox.critical(self, self.t("error"), self.t("open_error", error=error))
             return
         self.settings.setValue("last_open_directory", str(Path(path).resolve().parent))
-        self.viewer.current_page = 0
-        self.viewer.cache.clear()
-        self.viewer.redaction_cache.clear()
-        self.viewer.matches.clear()
-        self.viewer.rebuild()
-        self._toggle_redaction_mode(self.redact_action.isChecked())
-        self.matches.clear()
-        self._refresh_enabled()
-        self._update_title()
-        self.statusBar().showMessage(str(self.document.path))
+        viewer = PdfViewer(document)
+        context = DocumentTab(document, viewer)
+        self._wire_viewer(viewer)
+        self._document_tabs[viewer] = context
+        placeholder_index = self.tabs.indexOf(self._placeholder_viewer)
+        if placeholder_index >= 0:
+            self.tabs.removeTab(placeholder_index)
+        index = self.tabs.addTab(viewer, document.path.name if document.path else resolved_path.name)
+        self.tabs.setTabToolTip(index, str(document.path or resolved_path))
+        self.tabs.setCurrentIndex(index)
+        self.statusBar().showMessage(str(document.path))
 
     def save(self) -> bool:
         if self.document.path is None:
@@ -434,8 +552,14 @@ class MainWindow(QMainWindow):
         return self._save_to(path)
 
     def _save_to(self, path: str | Path) -> bool:
+        destination = Path(path).resolve()
+        for context in self._document_tabs.values():
+            if context is not self._active_tab and context.document.path:
+                if context.document.path.resolve() == destination:
+                    QMessageBox.critical(self, self.t("error"), self.t("save_target_open"))
+                    return False
         try:
-            self.document.save(path)
+            self.document.save(destination)
         except Exception as error:
             QMessageBox.critical(self, self.t("error"), self.t("save_error", error=error))
             return False
@@ -460,11 +584,18 @@ class MainWindow(QMainWindow):
         return answer == QMessageBox.StandardButton.Discard
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        if self._confirm_discard():
-            self.document.close()
-            event.accept()
-        else:
-            event.ignore()
+        for index in range(self.tabs.count()):
+            context = self._document_tabs.get(self.tabs.widget(index))
+            if context is None or not context.document.dirty:
+                continue
+            self.tabs.setCurrentIndex(index)
+            if not self._confirm_discard():
+                event.ignore()
+                return
+        for context in self._document_tabs.values():
+            context.document.close()
+        self._placeholder_document.close()
+        event.accept()
 
     def _set_page_number(self, index: int) -> None:
         self.page_field.setText(self.t("page_of", current=index + 1 if self.document.is_open else 0,
@@ -534,10 +665,14 @@ class MainWindow(QMainWindow):
     def _update_search(self) -> None:
         if self.document.pdf is None:
             return
+        if self._active_tab:
+            self._active_tab.search_text = self.search_field.text()
         self.matches = find_matches(self.document.pdf, self.search_field.text(),
                                     self.case_action.isChecked(), self.whole_action.isChecked(),
                                     self.diacritics_action.isChecked())
         self.viewer.matches = self.matches
+        if self._active_tab:
+            self._active_tab.matches = self.matches
         for canvas in self.viewer.canvases:
             canvas.update()
         self.match_index = -1
@@ -553,6 +688,8 @@ class MainWindow(QMainWindow):
         if not self.matches:
             return
         self.match_index = (self.match_index + direction) % len(self.matches)
+        if self._active_tab:
+            self._active_tab.match_index = self.match_index
         index, rect = self.matches[self.match_index]
         self.viewer.show_match(index, rect)
         self.statusBar().showMessage(self.t("matches", current=self.match_index + 1, total=len(self.matches)))

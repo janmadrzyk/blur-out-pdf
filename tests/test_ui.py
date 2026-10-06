@@ -58,3 +58,65 @@ def test_window_open_search_redact_save(tmp_path: Path) -> None:
         assert "SECRET" not in pdf[0].get_text()
     window.close()
     app.quit()
+
+
+def test_document_tabs_keep_search_edits_and_saves_separate(tmp_path: Path) -> None:
+    app = QApplication.instance() or QApplication([])
+    first = tmp_path / "first.pdf"
+    second = tmp_path / "second.pdf"
+    saved_second = tmp_path / "second-redacted.pdf"
+    for path, text in ((first, "ALPHA SECRET"), (second, "BETA SECRET")):
+        with pymupdf.open() as pdf:
+            page = pdf.new_page()
+            page.insert_text((50, 80), text, fontsize=18)
+            pdf.save(path)
+
+    window = MainWindow()
+    window.open_path(str(first))
+    first_document = window.document
+    first_viewer = window.viewer
+    window.search_field.setText("ALPHA")
+    first_secret = first_document.page(0).search_for("SECRET")[0]
+    first_document.add_redaction(0, first_secret, "black")
+    window._refresh_history_actions()
+    window._update_title()
+
+    window.open_path(str(second))
+    second_document = window.document
+    second_viewer = window.viewer
+    assert second_document is not first_document
+    assert not second_document.dirty
+    window.search_field.setText("BETA")
+    second_secret = second_document.page(0).search_for("SECRET")[0]
+    second_document.add_redaction(0, second_secret, "black")
+    window._refresh_history_actions()
+
+    window.tabs.setCurrentIndex(window.tabs.indexOf(first_viewer))
+    assert window.document is first_document
+    assert window.search_field.text() == "ALPHA"
+    assert len(first_document.redactions) == 1
+    window.undo_action.trigger()
+    assert not first_document.redactions
+    assert len(second_document.redactions) == 1
+    window.redo_action.trigger()
+    assert len(first_document.redactions) == 1
+
+    window.tabs.setCurrentIndex(window.tabs.indexOf(second_viewer))
+    assert window.document is second_document
+    assert window.search_field.text() == "BETA"
+    assert window._save_to(saved_second)
+    assert first_document.dirty
+    assert not second_document.dirty
+    with pymupdf.open(saved_second) as pdf:
+        assert "BETA" in pdf[0].get_text()
+        assert "SECRET" not in pdf[0].get_text()
+    window.tabs.setCurrentIndex(window.tabs.indexOf(first_viewer))
+    window.undo_action.trigger()
+    window.tabs.setCurrentIndex(window.tabs.indexOf(second_viewer))
+    window.close_tab(window.tabs.indexOf(second_viewer))
+    assert window.document is first_document
+    window.close_tab(window.tabs.indexOf(first_viewer))
+    assert not window.document.is_open
+    assert window.tabs.count() == 1
+    window.close()
+    app.quit()
