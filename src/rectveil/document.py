@@ -23,7 +23,7 @@ class Redaction:
     style: str = "black"
 
 
-EditState = tuple[tuple[Redaction, ...], dict[int, int]]
+EditState = tuple[Redaction, ...]
 
 
 class PdfDocument:
@@ -194,7 +194,6 @@ class PdfDocument:
     def rotate(self, page_index: int, degrees: int) -> None:
         if degrees not in (-90, 90):
             raise ValueError(degrees)
-        self._record_content_edit()
         value = (self.rotations.get(page_index, 0) + degrees) % 360
         if value:
             self.rotations[page_index] = value
@@ -219,26 +218,22 @@ class PdfDocument:
         return min(changed_pages) if changed_pages else None
 
     def _content_state(self) -> EditState:
-        return tuple(self.redactions), dict(self.rotations)
+        return tuple(self.redactions)
 
     def _record_content_edit(self) -> None:
         self._undo_states.append(self._content_state())
         self._redo_states.clear()
 
     def _restore_content_state(self, state: EditState) -> set[int]:
-        previous_redactions, previous_rotations = self._content_state()
-        next_redactions, next_rotations = state
-        page_indexes = {
-            item.page_index for item in (*previous_redactions, *next_redactions)
-        } | set(previous_rotations) | set(next_rotations)
+        previous_redactions = self.redactions
+        next_redactions = state
+        page_indexes = {item.page_index for item in (*previous_redactions, *next_redactions)}
         changed = {
             index for index in page_indexes
             if ([item for item in previous_redactions if item.page_index == index]
-                != [item for item in next_redactions if item.page_index == index]
-                or previous_rotations.get(index, 0) != next_rotations.get(index, 0))
+                != [item for item in next_redactions if item.page_index == index])
         }
         self.redactions = list(next_redactions)
-        self.rotations = dict(next_rotations)
         return changed
 
     def render(self, index: int, scale: float = 1.0) -> pymupdf.Pixmap:
