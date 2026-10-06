@@ -1,0 +1,61 @@
+"""Windows-aware palettes and one consistent outline icon family."""
+
+from PySide6.QtCore import QByteArray, Qt
+from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtSvg import QSvgRenderer
+from PySide6.QtWidgets import QApplication
+
+
+PATHS = {
+    "open": '<path d="M3 7h6l2 2h10v10H3z"/><path d="M3 7V5h7l2 2"/>',
+    "save": '<path d="M5 3h12l4 4v14H3V3z"/><path d="M7 3v7h9V3"/><path d="M7 21v-8h10v8"/>',
+    "redact": '<rect x="3" y="6" width="18" height="12" rx="1"/><path d="M6 10h12M6 14h9"/>',
+    "undo": '<path d="M9 5 4 10l5 5"/><path d="M4 10h10a6 6 0 0 1 0 12"/>',
+    "left": '<path d="M4 10a8 8 0 1 1 2 7"/><path d="M4 4v6h6"/>',
+    "right": '<path d="M20 10a8 8 0 1 0-2 7"/><path d="M20 4v6h-6"/>',
+    "first": '<path d="M5 5v14M18 5l-9 7 9 7"/>',
+    "prev": '<path d="M17 5l-9 7 9 7"/>',
+    "next": '<path d="M7 5l9 7-9 7"/>',
+    "last": '<path d="M19 5v14M6 5l9 7-9 7"/>',
+    "single": '<rect x="6" y="3" width="12" height="18" rx="1"/>',
+    "continuous": '<rect x="6" y="2" width="12" height="9" rx="1"/><rect x="6" y="13" width="12" height="9" rx="1"/>',
+    "options": '<circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>',
+    "close": '<path d="M6 6l12 12M18 6 6 18"/>',
+}
+
+
+def icon(name: str, color: str = "#293241") -> QIcon:
+    svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">{PATHS[name]}</svg>'
+    pixmap = QPixmap(24, 24)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    renderer = QSvgRenderer(QByteArray(svg.encode()))
+    from PySide6.QtGui import QPainter
+    painter = QPainter(pixmap)
+    renderer.render(painter)
+    painter.end()
+    return QIcon(pixmap)
+
+
+def apply_theme(app: QApplication, dark: bool) -> None:
+    background = "#171b22" if dark else "#f3f5f8"
+    surface = "#222832" if dark else "#ffffff"
+    text = "#edf1f7" if dark else "#1d2633"
+    border = "#414a59" if dark else "#cbd3de"
+    hover = "#303d4b" if dark else "#e8eef5"
+    app.setStyleSheet(f"""
+        QMainWindow, QScrollArea, QStatusBar {{ background: {background}; color: {text}; }}
+        QWidget {{ color: {text}; font-family: 'Segoe UI'; font-size: 10pt; }}
+        QMenuBar, QMenu, QToolBar, QFrame#bottomBar {{ background: {surface}; color: {text}; }}
+        QMenuBar::item:selected, QMenu::item:selected, QToolButton:hover, QPushButton:hover {{ background: {hover}; }}
+        QLineEdit, QComboBox, QSpinBox {{ background: {surface}; color: {text}; border: 1px solid {border}; border-radius: 5px; padding: 4px 6px; }}
+        QToolButton, QPushButton {{ background: transparent; border: 1px solid transparent; border-radius: 5px; padding: 4px; }}
+        QToolButton:checked, QPushButton:checked {{ background: #2d77bf; color: white; }}
+        QMenu {{ border: 1px solid {border}; padding: 4px; }}
+        QMenu::item {{ padding: 5px 20px; }}
+        QSlider::groove:horizontal {{ height: 4px; background: {border}; border-radius: 2px; }}
+        QSlider::handle:horizontal {{ width: 14px; margin: -6px 0; background: #2d77bf; border-radius: 7px; }}
+    """)
+
+
+def system_dark(app: QApplication) -> bool:
+    return app.styleHints().colorScheme() == Qt.ColorScheme.Dark
