@@ -258,6 +258,15 @@ class PdfDocument:
             for index, delta in self.rotations.items():
                 page = copy.load_page(index)
                 page.set_rotation((page.rotation + delta) % 360)
+            # Run general cleanup before redaction so it remains the final
+            # content-removal pass on page text and form appearances.
+            if self.redactions:
+                copy.scrub(
+                    attached_files=True, embedded_files=True, hidden_text=True,
+                    javascript=True, metadata=True, xml_metadata=True,
+                    remove_links=True, reset_fields=True, reset_responses=True,
+                    thumbnails=True, redactions=False,
+                )
             for redaction in self.redactions:
                 page = copy.load_page(redaction.page_index)
                 page.add_redact_annot(pymupdf.Rect(redaction.rect), fill=(0, 0, 0), cross_out=False)
@@ -271,14 +280,6 @@ class PdfDocument:
             for redaction in self.redactions:
                 if redaction.style != "black":
                     self._draw_grain(copy.load_page(redaction.page_index), redaction)
-            # Remove common hidden data that could contain another copy of a secret.
-            if self.redactions:
-                copy.scrub(
-                    attached_files=True, embedded_files=True, hidden_text=True,
-                    javascript=True, metadata=True, xml_metadata=True,
-                    remove_links=True, reset_fields=True, reset_responses=True,
-                    thumbnails=True, redactions=False,
-                )
             if self._metadata_cleared:
                 # Removing the whole Info dictionary also drops vendor-specific keys.
                 copy.xref_set_key(-1, "Info", "null")
@@ -319,7 +320,9 @@ class PdfDocument:
                             for span in line.get("spans", []):
                                 for char in span.get("chars", []):
                                     if pymupdf.Rect(char["bbox"]).intersects(area):
-                                        raise RuntimeError("Text remains in a redacted area")
+                                        raise RuntimeError(
+                                            f"Text remains in a redacted area on page {redaction.page_index + 1}"
+                                        )
             finally:
                 verification.close()
             replacing_open_file = self.path is not None and self.path.resolve() == destination
