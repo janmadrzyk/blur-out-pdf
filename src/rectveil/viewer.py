@@ -33,6 +33,7 @@ class PageCanvas(QWidget):
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
         painter.fillRect(self.rect(), QColor("white"))
         image = self.viewer.get_page_image(self.index)
         if image:
@@ -95,7 +96,7 @@ class PdfViewer(QScrollArea):
         self.layout_mode = "continuous"
         self.current_page = 0
         self.matches: list[tuple[int, pymupdf.Rect]] = []
-        self.cache: OrderedDict[tuple[int, float, int], QPixmap] = OrderedDict()
+        self.cache: OrderedDict[tuple[int, float, float, int], QPixmap] = OrderedDict()
         self.canvases: list[PageCanvas] = []
         self.setWidgetResizable(True)
         self.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
@@ -139,13 +140,18 @@ class PdfViewer(QScrollArea):
     def get_page_image(self, index: int) -> QPixmap | None:
         if not self.document.is_open:
             return None
-        key = (index, round(self.scale, 3), self.document.display_rotation(index))
+        device_pixel_ratio = self.devicePixelRatioF()
+        key = (index, round(self.scale, 3), round(device_pixel_ratio, 3), self.document.display_rotation(index))
         if key in self.cache:
             self.cache.move_to_end(key)
             return self.cache[key]
-        pix = self.document.render(index, self.scale)
+        # QWidget geometry is in logical pixels. Render the PDF vectors at the
+        # corresponding physical display resolution to avoid stretching a
+        # low-density pixmap on high-DPI Windows screens.
+        pix = self.document.render(index, self.scale * device_pixel_ratio)
         image = QImage(pix.samples, pix.width, pix.height, pix.stride, QImage.Format.Format_RGB888).copy()
         result = QPixmap.fromImage(image)
+        result.setDevicePixelRatio(device_pixel_ratio)
         self.cache[key] = result
         if len(self.cache) > 6:
             self.cache.popitem(last=False)
