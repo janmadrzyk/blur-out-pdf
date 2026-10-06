@@ -36,6 +36,7 @@ class MainWindow(QMainWindow):
         self.viewer = PdfViewer(self.document)
         self.setCentralWidget(self.viewer)
         self.viewer.redaction_drawn.connect(self._add_redaction)
+        self.viewer.redaction_edited.connect(self._redaction_edited)
         self.viewer.current_page_changed.connect(self._set_page_number)
         self.viewer.zoom_requested.connect(self._set_zoom)
         self.matches: list[tuple[int, pymupdf.Rect]] = []
@@ -323,11 +324,21 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(self.t("drag_hint"))
 
     def _add_redaction(self, index: int, rect: pymupdf.Rect) -> None:
-        self.document.add_redaction(index, rect, self.style_name)
+        try:
+            self.document.add_redaction(index, rect, self.style_name)
+        except Exception as error:
+            QMessageBox.critical(self, self.t("error"), self.t("redaction_error", error=error))
+            return
         self.viewer.canvases[index].update()
         self._refresh_history_actions()
         self._update_title()
         self.statusBar().showMessage(self.t("redaction_added"))
+
+    def _redaction_edited(self, index: int) -> None:
+        self.viewer.canvases[index].update()
+        self._refresh_history_actions()
+        self._update_title()
+        self.statusBar().showMessage(self.t("redaction_updated"))
 
     def _refresh_history_actions(self) -> None:
         has_document = self.document.is_open
@@ -396,6 +407,7 @@ class MainWindow(QMainWindow):
         self.settings.setValue("last_open_directory", str(Path(path).resolve().parent))
         self.viewer.current_page = 0
         self.viewer.cache.clear()
+        self.viewer.redaction_cache.clear()
         self.viewer.matches.clear()
         self.viewer.rebuild()
         self._toggle_redaction_mode(self.redact_action.isChecked())
@@ -429,6 +441,7 @@ class MainWindow(QMainWindow):
             return False
         self.settings.setValue("last_save_directory", str(Path(path).resolve().parent))
         self.viewer.cache.clear()
+        self.viewer.redaction_cache.clear()
         self.viewer.rebuild()
         self._toggle_redaction_mode(self.redact_action.isChecked())
         self._update_search()

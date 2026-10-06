@@ -46,6 +46,39 @@ def test_rotation_and_grain_survive_save(tmp_path: Path) -> None:
     with pymupdf.open(result) as pdf:
         assert pdf[0].rotation == 90
         assert "SECRET" not in pdf[0].get_text()
+        assert pdf[0].get_images(full=True)
+
+
+def test_redaction_then_pending_rotation_removes_text_before_rotating(tmp_path: Path) -> None:
+    source = tmp_path / "source.pdf"
+    result = tmp_path / "result.pdf"
+    make_pdf(source)
+    document = PdfDocument()
+    document.open(source)
+    secret = document.page(0).search_for("SECRET")[0]
+    document.add_redaction(0, secret + (-2, -2, 2, 2), "black")
+    document.rotate(0, 90)
+    document.save(result)
+    with pymupdf.open(result) as pdf:
+        assert pdf[0].rotation == 90
+        assert "SECRET" not in pdf[0].get_text()
+
+
+def test_blur_preview_changes_with_underlying_page_content(tmp_path: Path) -> None:
+    previews = []
+    for index, text in enumerate(("ALPHA", "OMEGA")):
+        source = tmp_path / f"source-{index}.pdf"
+        with pymupdf.open() as pdf:
+            page = pdf.new_page(width=400, height=300)
+            page.insert_text((40, 70), text, fontsize=18)
+            pdf.save(source)
+        document = PdfDocument()
+        document.open(source)
+        document.add_redaction(0, pymupdf.Rect(35, 45, 160, 85), "fine")
+        previews.append(document.redactions[0].visual_data)
+        document.close()
+    assert previews[0] and previews[1]
+    assert previews[0] != previews[1]
 
 
 def test_save_to_same_path_is_full_replacement(tmp_path: Path) -> None:

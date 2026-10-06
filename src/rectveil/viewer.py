@@ -6,7 +6,7 @@ from collections import OrderedDict
 
 import pymupdf
 from PySide6.QtCore import QPoint, QRect, Qt, Signal
-from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPen, QPixmap, QWheelEvent
+from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPen, QPixmap, QTransform, QWheelEvent
 from PySide6.QtWidgets import QScrollArea, QVBoxLayout, QWidget
 
 from .document import PdfDocument
@@ -17,6 +17,7 @@ PAGE_MARGIN = 14
 
 class PageCanvas(QWidget):
     redaction_drawn = Signal(int, object)
+    redaction_edited = Signal(int)
 
     def __init__(self, viewer: "PdfViewer", index: int) -> None:
         super().__init__()
@@ -24,6 +25,9 @@ class PageCanvas(QWidget):
         self.index = index
         self.drag_start: QPoint | None = None
         self.drag_end: QPoint | None = None
+        self.resize_target: tuple[int, str, pymupdf.Rect] | None = None
+        self.resize_recorded = False
+        self.hovered_redaction: int | None = None
         self.setMouseTracking(True)
         self.resize_to_page()
 
@@ -38,20 +42,29 @@ class PageCanvas(QWidget):
         image = self.viewer.get_page_image(self.index)
         if image:
             painter.drawPixmap(self.rect(), image)
-        for item in self.viewer.document.redactions:
-            if item.page_index == self.index:
-                rect = self.viewer.document.page_to_display(self.index, pymupdf.Rect(item.rect))
-                target = QRect(round(rect.x0 * self.viewer.scale), round(rect.y0 * self.viewer.scale),
-                               round(rect.width * self.viewer.scale), round(rect.height * self.viewer.scale))
-                painter.fillRect(target, QColor("#090b0f") if item.style == "black" else QColor("#50565f"))
-                painter.setPen(QPen(QColor("#3b9dff"), 1.5, Qt.PenStyle.DashLine))
-                painter.drawRect(target)
         for page_index, rect in self.viewer.matches:
             if page_index == self.index:
                 display = self.viewer.document.page_to_display(self.index, rect)
                 target = QRect(round(display.x0 * self.viewer.scale), round(display.y0 * self.viewer.scale),
                                round(display.width * self.viewer.scale), round(display.height * self.viewer.scale))
                 painter.fillRect(target, QColor(255, 203, 75, 110))
+        for redaction_index, item in enumerate(self.viewer.document.redactions):
+            if item.page_index != self.index:
+                continue
+            rect = self._display_rect(item)
+            target = self._pixel_rect(rect)
+            if item.style == "black":
+                painter.fillRect(target, QColor(0, 0, 0))
+            elif item.visual_data:
+                visual = self.viewer.redaction_pixmap(item.visual_data, self.index)
+                if visual:
+                    painter.drawPixmap(target, visual)
+            else:
+                painter.fillRect(target, QColor("#50565f"))
+            if self.hovered_redaction == redaction_index or (
+                self.resize_target and self.resize_target[0] == redaction_index
+            ):
+                self._paint_handles(painter, rect)
         if self.drag_start and self.drag_end:
             target = QRect(self.drag_start, self.drag_end).normalized()
             painter.fillRect(target, QColor(16, 24, 32, 180))
@@ -59,6 +72,15 @@ class PageCanvas(QWidget):
             painter.drawRect(target)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            handle = self._handle_at(event.position().toPoint())
+            if handle:
+                redaction_index, corner, display_rect = handle
+                self.resize_target = (redaction_index, corner, display_rect)
+                self.resize_recorded = False
+                self.setCursor(self._resize_cursor(corner))
+                event.accept()
+                return
         if self.viewer.redaction_mode and event.button() == Qt.MouseButton.LeftButton:
             self.drag_start = event.position().toPoint()
             self.drag_end = self.drag_start
@@ -66,13 +88,35 @@ class PageCanvas(QWidget):
             event.accept()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        if self.drag_start is not None:
-            self.drag_end = event.position().toPoint()
+        position = event.position().toPoint()
+        if self.resize_target:
+            self._resize_redaction(position)
+            event.accept()
+        elif self.drag_start is not None:
+            self.drag_end = position
             self.update()
             event.accept()
+        else:
+            handle = self._handle_at(position)
+            hovered = handle[0] if handle else None
+            if hovered != self.hovered_redaction:
+                self.hovered_redaction = hovered
+                self.update()
+            self.setCursor(self._resize_cursor(handle[1]) if handle else self._default_cursor())
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
-        if self.drag_start is not None and event.button() == Qt.MouseButton.LeftButton:
+        if self.resize_target and event.button() == Qt.MouseButton.LeftButton:
+            redaction_index, _, _ = self.resize_target
+            changed = self.resize_recorded
+            self.resize_target = None
+            self.resize_recorded = False
+            if changed:
+                self.viewer.document.refresh_redaction_visuals(self.index, redaction_index)
+                self.redaction_edited.emit(self.index)
+            self.update()
+            self.setCursor(self._default_cursor())
+            event.accept()
+        elif self.drag_start is not None and event.button() == Qt.MouseButton.LeftButton:
             end = event.position().toPoint()
             area = QRect(self.drag_start, end).normalized().intersected(self.rect())
             self.drag_start = self.drag_end = None
@@ -88,10 +132,87 @@ class PageCanvas(QWidget):
             return
         super().wheelEvent(event)
 
+    def leaveEvent(self, event) -> None:
+        if self.hovered_redaction is not None:
+            self.hovered_redaction = None
+            self.update()
+        if not self.resize_target:
+            self.setCursor(self._default_cursor())
+        super().leaveEvent(event)
+
+    def _display_rect(self, item) -> pymupdf.Rect:
+        return self.viewer.document.page_to_display(self.index, pymupdf.Rect(item.rect))
+
+    def _pixel_rect(self, rect: pymupdf.Rect) -> QRect:
+        return QRect(round(rect.x0 * self.viewer.scale), round(rect.y0 * self.viewer.scale),
+                     round(rect.width * self.viewer.scale), round(rect.height * self.viewer.scale))
+
+    @staticmethod
+    def _corners(rect: pymupdf.Rect) -> dict[str, QPoint]:
+        return {
+            "top_left": QPoint(round(rect.x0), round(rect.y0)),
+            "top_right": QPoint(round(rect.x1), round(rect.y0)),
+            "bottom_left": QPoint(round(rect.x0), round(rect.y1)),
+            "bottom_right": QPoint(round(rect.x1), round(rect.y1)),
+        }
+
+    def _handle_at(self, position: QPoint) -> tuple[int, str, pymupdf.Rect] | None:
+        radius = 9
+        for index in range(len(self.viewer.document.redactions) - 1, -1, -1):
+            item = self.viewer.document.redactions[index]
+            if item.page_index != self.index:
+                continue
+            rect = self._display_rect(item)
+            for corner, point in self._corners(rect).items():
+                scaled = QPoint(round(point.x() * self.viewer.scale), round(point.y() * self.viewer.scale))
+                if (position - scaled).manhattanLength() <= radius:
+                    return index, corner, rect
+        return None
+
+    def _paint_handles(self, painter: QPainter, rect: pymupdf.Rect) -> None:
+        painter.setPen(QPen(QColor("#126fd1"), 1.5))
+        painter.setBrush(QColor("#ffffff"))
+        for point in self._corners(rect).values():
+            center = QPoint(round(point.x() * self.viewer.scale), round(point.y() * self.viewer.scale))
+            painter.drawEllipse(center, 5, 5)
+
+    @staticmethod
+    def _resize_cursor(corner: str) -> Qt.CursorShape:
+        if corner in ("top_left", "bottom_right"):
+            return Qt.CursorShape.SizeFDiagCursor
+        return Qt.CursorShape.SizeBDiagCursor
+
+    def _default_cursor(self) -> Qt.CursorShape:
+        return Qt.CursorShape.CrossCursor if self.viewer.redaction_mode else Qt.CursorShape.ArrowCursor
+
+    def _resize_redaction(self, position: QPoint) -> None:
+        if not self.resize_target:
+            return
+        index, corner, original = self.resize_target
+        width, height = self.viewer.document.display_size(self.index)
+        x = min(max(position.x() / self.viewer.scale, 0.0), width)
+        y = min(max(position.y() / self.viewer.scale, 0.0), height)
+        minimum = 2.0
+        rect = pymupdf.Rect(original)
+        if corner.endswith("left"):
+            rect.x0 = min(x, original.x1 - minimum)
+        else:
+            rect.x1 = max(x, original.x0 + minimum)
+        if corner.startswith("top"):
+            rect.y0 = min(y, original.y1 - minimum)
+        else:
+            rect.y1 = max(y, original.y0 + minimum)
+        if self.viewer.document.update_redaction(
+            index, rect, record_history=not self.resize_recorded, refresh_visual=False,
+        ):
+            self.resize_recorded = True
+            self.update()
+
 
 class PdfViewer(QScrollArea):
     current_page_changed = Signal(int)
     redaction_drawn = Signal(int, object)
+    redaction_edited = Signal(int)
     zoom_requested = Signal(float, object)
 
     def __init__(self, document: PdfDocument) -> None:
@@ -103,6 +224,7 @@ class PdfViewer(QScrollArea):
         self.current_page = 0
         self.matches: list[tuple[int, pymupdf.Rect]] = []
         self.cache: OrderedDict[tuple[int, float, float, int], QPixmap] = OrderedDict()
+        self.redaction_cache: OrderedDict[tuple[int, int], tuple[bytes, QPixmap]] = OrderedDict()
         self.canvases: list[PageCanvas] = []
         self.setWidgetResizable(True)
         self.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
@@ -118,6 +240,7 @@ class PdfViewer(QScrollArea):
         for index in range(self.document.page_count):
             canvas = PageCanvas(self, index)
             canvas.redaction_drawn.connect(self.redaction_drawn)
+            canvas.redaction_edited.connect(self.redaction_edited)
             layout.addWidget(canvas, alignment=Qt.AlignmentFlag.AlignHCenter)
             self.canvases.append(canvas)
         layout.addStretch()
@@ -126,6 +249,25 @@ class PdfViewer(QScrollArea):
         if old:
             old.deleteLater()
         self._apply_layout_mode()
+
+    def redaction_pixmap(self, data: bytes, page_index: int) -> QPixmap | None:
+        rotation = self.document.display_rotation(page_index)
+        key = (id(data), rotation)
+        cached = self.redaction_cache.get(key)
+        if cached and cached[0] is data:
+            self.redaction_cache.move_to_end(key)
+            return cached[1]
+        pixmap = QPixmap()
+        if not pixmap.loadFromData(data, "PNG"):
+            return None
+        if rotation:
+            pixmap = pixmap.transformed(
+                QTransform().rotate(rotation), Qt.TransformationMode.SmoothTransformation,
+            )
+        self.redaction_cache[key] = (data, pixmap)
+        if len(self.redaction_cache) > 32:
+            self.redaction_cache.popitem(last=False)
+        return pixmap
 
     def _apply_layout_mode(self) -> None:
         for index, canvas in enumerate(self.canvases):

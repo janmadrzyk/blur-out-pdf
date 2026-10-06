@@ -5,12 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import os
-import random
 import tempfile
 
 import pymupdf
 
 from .metadata import METADATA_FIELDS
+from .redaction_visual import render_blur_png
 
 
 STYLES = ("black", "fine", "coarse")
@@ -21,6 +21,7 @@ class Redaction:
     page_index: int
     rect: tuple[float, float, float, float]
     style: str = "black"
+    visual_data: bytes | None = None
 
 
 EditState = tuple[Redaction, ...]
@@ -188,8 +189,62 @@ class PdfDocument:
         rect = self.display_to_page(page_index, display_rect)
         if rect.width < 2 or rect.height < 2:
             return
+        visual_data = self._redaction_visual(page_index, rect, style, self.redactions)
         self._record_content_edit()
-        self.redactions.append(Redaction(page_index, tuple(rect), style))
+        self.redactions.append(Redaction(page_index, tuple(rect), style, visual_data))
+
+    def update_redaction(
+        self,
+        index: int,
+        display_rect: pymupdf.Rect,
+        record_history: bool = True,
+        refresh_visual: bool = True,
+    ) -> bool:
+        """Resize a pending redaction using display-space page coordinates."""
+        current = self.redactions[index]
+        rect = self.display_to_page(current.page_index, display_rect)
+        if rect.width < 2 or rect.height < 2:
+            return False
+        if tuple(rect) == current.rect:
+            return False
+        visual_data = current.visual_data
+        if refresh_visual:
+            visual_data = self._redaction_visual(
+                current.page_index, rect, current.style, self.redactions[:index],
+            )
+        next_redaction = Redaction(current.page_index, tuple(rect), current.style, visual_data)
+        if record_history:
+            self._record_content_edit()
+        self.redactions[index] = next_redaction
+        return True
+
+    def _redaction_visual(
+        self,
+        page_index: int,
+        rect: pymupdf.Rect,
+        style: str,
+        preceding: list[Redaction],
+    ) -> bytes | None:
+        if style == "black":
+            return None
+        overlays = (
+            (pymupdf.Rect(item.rect), item.style, item.visual_data)
+            for item in preceding if item.page_index == page_index
+        )
+        return render_blur_png(self.page(page_index), rect, style, overlays)
+
+    def refresh_redaction_visuals(self, page_index: int | None = None, start_index: int = 0) -> None:
+        """Rebuild blur images in draw order after an earlier shape changes."""
+        refreshed = list(self.redactions)
+        for index in range(max(0, start_index), len(refreshed)):
+            item = refreshed[index]
+            if item.style != "black" and (page_index is None or item.page_index == page_index):
+                preceding = [entry for entry in refreshed[:index] if entry.page_index == item.page_index]
+                refreshed[index] = Redaction(
+                    item.page_index, item.rect, item.style,
+                    self._redaction_visual(item.page_index, pymupdf.Rect(item.rect), item.style, preceding),
+                )
+        self.redactions = refreshed
 
     def rotate(self, page_index: int, degrees: int) -> None:
         if degrees not in (-90, 90):
@@ -204,13 +259,19 @@ class PdfDocument:
         if not self._undo_states:
             return set()
         self._redo_states.append(self._content_state())
-        return self._restore_content_state(self._undo_states.pop())
+        changed = self._restore_content_state(self._undo_states.pop())
+        for index in changed:
+            self.refresh_redaction_visuals(page_index=index)
+        return changed
 
     def redo(self) -> set[int]:
         if not self._redo_states:
             return set()
         self._undo_states.append(self._content_state())
-        return self._restore_content_state(self._redo_states.pop())
+        changed = self._restore_content_state(self._redo_states.pop())
+        for index in changed:
+            self.refresh_redaction_visuals(page_index=index)
+        return changed
 
     def undo_last_redaction(self) -> int | None:
         """Compatibility wrapper for callers of the original one-step undo."""
@@ -249,6 +310,8 @@ class PdfDocument:
         """Write a full replacement PDF, then atomically replace the destination."""
         if self.pdf is None:
             raise RuntimeError("No PDF is open")
+        if any(item.style != "black" for item in self.redactions):
+            self.refresh_redaction_visuals()
         destination = Path(target).resolve()
         destination.parent.mkdir(parents=True, exist_ok=True)
         # Work on a private copy so a failed save cannot alter the open document.
@@ -302,7 +365,11 @@ class PdfDocument:
                     )
             for redaction in self.redactions:
                 if redaction.style != "black":
-                    self._draw_grain(copy.load_page(redaction.page_index), redaction)
+                    if redaction.visual_data is None:
+                        raise RuntimeError("Could not render the blur for this redaction")
+                    copy.load_page(redaction.page_index).insert_image(
+                        pymupdf.Rect(redaction.rect), stream=redaction.visual_data, overlay=True,
+                    )
             # Redaction areas use unrotated page coordinates. Apply pending
             # rotations after all page-space redaction operations are finished.
             for index, delta in self.rotations.items():
@@ -386,21 +453,3 @@ class PdfDocument:
                             key = tuple(round(value, 3) for value in box)
                             boxes[key] = box
         return list(boxes.values())
-
-    @staticmethod
-    def _draw_grain(page: pymupdf.Page, redaction: Redaction) -> None:
-        """Decorative noise is generated independently from the removed content."""
-        rect = pymupdf.Rect(redaction.rect)
-        width = max(1, min(1600, round(rect.width)))
-        height = max(1, min(1600, round(rect.height)))
-        step = 2 if redaction.style == "fine" else 7
-        rng = random.Random(f"{redaction.page_index}:{redaction.rect}:{redaction.style}")
-        samples = bytearray()
-        for y in range(0, height, step):
-            row = bytearray()
-            for x in range(0, width, step):
-                shade = rng.randint(38, 125)
-                row.extend(bytes((shade, shade, shade)) * min(step, width - x))
-            samples.extend(row * min(step, height - y))
-        image = pymupdf.Pixmap(pymupdf.csRGB, width, height, bytes(samples), False)
-        page.insert_image(rect, stream=image.tobytes("png"), overlay=True)
