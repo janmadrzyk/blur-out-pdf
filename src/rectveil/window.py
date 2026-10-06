@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pymupdf
-from PySide6.QtCore import QSettings, QStandardPaths, QSize, Qt
+from PySide6.QtCore import QPoint, QSettings, QStandardPaths, QSize, Qt
 from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QFileDialog, QFrame, QHBoxLayout, QInputDialog,
@@ -468,8 +468,8 @@ class MainWindow(QMainWindow):
         self.single_button.setChecked(mode == "single")
         self.continuous_button.setChecked(mode == "continuous")
 
-    def _set_zoom(self, scale: float) -> None:
-        self.viewer.set_scale(scale)
+    def _set_zoom(self, scale: float, anchor_global: QPoint | None = None) -> None:
+        self.viewer.set_scale(scale, anchor_global)
         percent = round(self.viewer.scale * 100)
         self.zoom_slider.blockSignals(True)
         self.zoom_slider.setValue(percent)

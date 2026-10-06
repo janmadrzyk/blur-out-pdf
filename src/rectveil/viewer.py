@@ -92,7 +92,7 @@ class PageCanvas(QWidget):
 class PdfViewer(QScrollArea):
     current_page_changed = Signal(int)
     redaction_drawn = Signal(int, object)
-    zoom_requested = Signal(float)
+    zoom_requested = Signal(float, object)
 
     def __init__(self, document: PdfDocument) -> None:
         super().__init__()
@@ -136,12 +136,49 @@ class PdfViewer(QScrollArea):
         self._apply_layout_mode()
         self.go_to_page(self.current_page)
 
-    def set_scale(self, scale: float) -> None:
-        self.scale = max(0.25, min(3.0, scale))
+    def set_scale(self, scale: float, anchor_global: QPoint | None = None) -> None:
+        previous_scale = self.scale
+        next_scale = max(0.25, min(3.0, scale))
+        anchor: tuple[PageCanvas, float, float, QPoint] | None = None
+        if anchor_global is not None and self.canvases and next_scale != previous_scale:
+            anchor_in_viewport = self.viewport().mapFromGlobal(anchor_global)
+            visible_canvases = [canvas for canvas in self.canvases if canvas.isVisible()]
+            if visible_canvases:
+                def distance(canvas: PageCanvas) -> int:
+                    top_left = canvas.mapTo(self.viewport(), QPoint(0, 0))
+                    rect = QRect(top_left, canvas.size())
+                    dx = max(rect.left() - anchor_in_viewport.x(), 0,
+                             anchor_in_viewport.x() - rect.right())
+                    dy = max(rect.top() - anchor_in_viewport.y(), 0,
+                             anchor_in_viewport.y() - rect.bottom())
+                    return dx * dx + dy * dy
+
+                canvas = min(visible_canvases, key=distance)
+                local = canvas.mapFromGlobal(anchor_global)
+                page_x = min(max(local.x(), 0), max(canvas.width() - 1, 0)) / previous_scale
+                page_y = min(max(local.y(), 0), max(canvas.height() - 1, 0)) / previous_scale
+                anchor = (canvas, page_x, page_y, anchor_in_viewport)
+
+        self.scale = next_scale
         self.cache.clear()
         for canvas in self.canvases:
             canvas.resize_to_page()
             canvas.update()
+        if anchor:
+            layout = self.widget().layout()
+            if layout:
+                layout.activate()
+            canvas, page_x, page_y, anchor_in_viewport = anchor
+            new_point = canvas.mapTo(
+                self.viewport(),
+                QPoint(round(page_x * self.scale), round(page_y * self.scale)),
+            )
+            self.horizontalScrollBar().setValue(
+                self.horizontalScrollBar().value() + new_point.x() - anchor_in_viewport.x()
+            )
+            self.verticalScrollBar().setValue(
+                self.verticalScrollBar().value() + new_point.y() - anchor_in_viewport.y()
+            )
 
     def zoom_with_wheel(self, event: QWheelEvent) -> bool:
         if not event.modifiers() & Qt.KeyboardModifier.ControlModifier:
@@ -150,7 +187,7 @@ class PdfViewer(QScrollArea):
         if not delta:
             delta = event.pixelDelta().y() / 80.0
         if delta:
-            self.zoom_requested.emit(self.scale * (1.15 ** delta))
+            self.zoom_requested.emit(self.scale * (1.15 ** delta), event.globalPosition().toPoint())
         event.accept()
         return True
 
