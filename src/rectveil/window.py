@@ -73,6 +73,16 @@ class MainWindow(QMainWindow):
         self.exit_action = self.file_menu.addAction("")
         self.exit_action.triggered.connect(self.close)
 
+        self.edit_menu = bar.addMenu("")
+        self.undo_action = QAction("", self)
+        self.edit_menu.addAction(self.undo_action)
+        self.undo_action.setShortcut(QKeySequence.StandardKey.Undo)
+        self.undo_action.triggered.connect(self._undo_content)
+        self.redo_action = QAction("", self)
+        self.edit_menu.addAction(self.redo_action)
+        self.redo_action.setShortcut(QKeySequence.StandardKey.Redo)
+        self.redo_action.triggered.connect(self._redo_content)
+
         self.settings_menu = bar.addMenu("")
         self.language_menu = self.settings_menu.addMenu("")
         language_group = QActionGroup(self)
@@ -142,11 +152,10 @@ class MainWindow(QMainWindow):
         self.redact_action = self.edit_toolbar.addAction("")
         self.redact_action.setCheckable(True)
         self.redact_action.toggled.connect(self._toggle_redaction_mode)
-        self.edit_toolbar.addAction(self.metadata_action)
+        self.edit_toolbar.addAction(self.undo_action)
+        self.edit_toolbar.addAction(self.redo_action)
         self.edit_toolbar.addSeparator()
-        self.undo_action = self.edit_toolbar.addAction("")
-        self.undo_action.setShortcut(QKeySequence.StandardKey.Undo)
-        self.undo_action.triggered.connect(self._undo_redaction)
+        self.edit_toolbar.addAction(self.metadata_action)
         self.edit_toolbar.addSeparator()
         self.left_action = self.edit_toolbar.addAction("")
         self.right_action = self.edit_toolbar.addAction("")
@@ -214,7 +223,8 @@ class MainWindow(QMainWindow):
                              (self.last_button, "last"), (self.single_button, "single"),
                              (self.continuous_button, "continuous")):
             button.setIcon(icon(name, color))
-        for action, name in ((self.redact_action, "redact"), (self.undo_action, "undo"), (self.left_action, "left"),
+        for action, name in ((self.redact_action, "redact"), (self.undo_action, "undo"),
+                             (self.redo_action, "redo"), (self.left_action, "left"),
                              (self.right_action, "right")):
             action.setIcon(icon(name, color))
         self.metadata_action.setIcon(icon("metadata", color))
@@ -227,7 +237,9 @@ class MainWindow(QMainWindow):
         for target, key in ((self.file_menu, "file"), (self.open_action, "open"),
                             (self.save_action, "save"), (self.save_as_action, "save_as"),
                             (self.metadata_action, "edit_metadata"),
-                            (self.exit_action, "exit"), (self.settings_menu, "settings"),
+                            (self.exit_action, "exit"), (self.edit_menu, "edit_menu"),
+                            (self.undo_action, "undo"), (self.redo_action, "redo"),
+                            (self.settings_menu, "settings"),
                             (self.language_menu, "language"), (self.pl_action, "polish"),
                             (self.en_action, "english"), (self.style_menu, "style"),
                             (self.toolbar_action, "show_toolbar"), (self.case_action, "case"),
@@ -264,7 +276,7 @@ class MainWindow(QMainWindow):
                         self.single_button, self.continuous_button, self.zoom_list,
                         self.zoom_slider, self.search_field):
             control.setEnabled(has_document)
-        self.undo_action.setEnabled(bool(self.document.redactions))
+        self._refresh_history_actions()
         self._set_page_number(self.viewer.current_page)
 
     def _update_title(self) -> None:
@@ -312,15 +324,25 @@ class MainWindow(QMainWindow):
     def _add_redaction(self, index: int, rect: pymupdf.Rect) -> None:
         self.document.add_redaction(index, rect, self.style_name)
         self.viewer.canvases[index].update()
-        self.undo_action.setEnabled(bool(self.document.redactions))
+        self._refresh_history_actions()
         self._update_title()
         self.statusBar().showMessage(self.t("redaction_added"))
 
-    def _undo_redaction(self) -> None:
-        index = self.document.undo_last_redaction()
-        if index is not None:
-            self.viewer.canvases[index].update()
-        self.undo_action.setEnabled(bool(self.document.redactions))
+    def _refresh_history_actions(self) -> None:
+        has_document = self.document.is_open
+        self.undo_action.setEnabled(has_document and self.document.can_undo)
+        self.redo_action.setEnabled(has_document and self.document.can_redo)
+
+    def _undo_content(self, *_args) -> None:
+        for index in self.document.undo():
+            self.viewer.refresh_page(index)
+        self._refresh_history_actions()
+        self._update_title()
+
+    def _redo_content(self, *_args) -> None:
+        for index in self.document.redo():
+            self.viewer.refresh_page(index)
+        self._refresh_history_actions()
         self._update_title()
 
     def _rotate(self, degrees: int) -> None:
@@ -329,6 +351,7 @@ class MainWindow(QMainWindow):
         index = self.viewer.current_page
         self.document.rotate(index, degrees)
         self.viewer.refresh_page(index)
+        self._refresh_history_actions()
         self._update_title()
 
     def _initial_directory(self, setting_key: str, fallback: str | Path | None = None) -> str:

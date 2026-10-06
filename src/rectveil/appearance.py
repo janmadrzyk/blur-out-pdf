@@ -11,6 +11,7 @@ PATHS = {
     "save": '<path d="M5 3h12l4 4v14H3V3z"/><path d="M7 3v7h9V3"/><path d="M7 21v-8h10v8"/>',
     "redact": '<rect x="3" y="6" width="18" height="12" rx="1"/><path d="M6 10h12M6 14h9"/>',
     "undo": '<path d="M9 5 4 10l5 5"/><path d="M4 10h10a6 6 0 0 1 0 12"/>',
+    "redo": '<path d="m15 5 5 5-5 5"/><path d="M20 10H10a6 6 0 0 0 0 12"/>',
     "metadata": '<path d="M4 3h11l5 5v13H4z"/><path d="M15 3v5h5"/><circle cx="12" cy="15" r="4"/><path d="M12 13v.1M12 15v2"/>',
     "left": '<path d="M4 10a8 8 0 1 1 2 7"/><path d="M4 4v6h6"/>',
     "right": '<path d="M20 10a8 8 0 1 0-2 7"/><path d="M20 4v6h-6"/>',

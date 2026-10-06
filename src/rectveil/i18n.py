@@ -6,6 +6,7 @@ from PySide6.QtCore import QLocale
 STRINGS = {
     "en": {
         "file": "File", "open": "Open…", "save": "Save", "save_as": "Save as…",
+        "edit_menu": "Edit", "undo": "Undo", "redo": "Redo",
         "edit_metadata": "Edit metadata…",
         "metadata_title": "Title", "metadata_author": "Author", "metadata_subject": "Subject",
         "metadata_keywords": "Keywords", "metadata_creator": "Creator", "metadata_producer": "Producer",
@@ -44,6 +45,7 @@ STRINGS = {
     },
     "pl": {
         "file": "Plik", "open": "Otwórz…", "save": "Zapisz", "save_as": "Zapisz jako…",
+        "edit_menu": "Edycja", "undo": "Cofnij", "redo": "Ponów",
         "edit_metadata": "Edytuj metadane…",
         "metadata_title": "Tytuł", "metadata_author": "Autor", "metadata_subject": "Temat",
         "metadata_keywords": "Słowa kluczowe", "metadata_creator": "Program tworzący", "metadata_producer": "Producent PDF",

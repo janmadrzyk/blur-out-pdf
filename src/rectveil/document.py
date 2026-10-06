@@ -23,12 +23,17 @@ class Redaction:
     style: str = "black"
 
 
+EditState = tuple[tuple[Redaction, ...], dict[int, int]]
+
+
 class PdfDocument:
     def __init__(self) -> None:
         self.path: Path | None = None
         self.pdf: pymupdf.Document | None = None
         self.redactions: list[Redaction] = []
         self.rotations: dict[int, int] = {}
+        self._undo_states: list[EditState] = []
+        self._redo_states: list[EditState] = []
         self._metadata_cleared = False
         self._metadata_overrides: dict[str, str] = {}
         self._xml_metadata_override: str | None = None
@@ -41,6 +46,14 @@ class PdfDocument:
     def dirty(self) -> bool:
         return bool(self.redactions or self.rotations or self._metadata_cleared
                     or self._metadata_overrides or self._xml_metadata_override is not None)
+
+    @property
+    def can_undo(self) -> bool:
+        return bool(self._undo_states)
+
+    @property
+    def can_redo(self) -> bool:
+        return bool(self._redo_states)
 
     @property
     def page_count(self) -> int:
@@ -64,6 +77,8 @@ class PdfDocument:
         self.path = Path(path)
         self.redactions.clear()
         self.rotations.clear()
+        self._undo_states.clear()
+        self._redo_states.clear()
         self._metadata_cleared = False
         self._metadata_overrides.clear()
         self._xml_metadata_override = None
@@ -76,6 +91,8 @@ class PdfDocument:
         self.path = None
         self.redactions.clear()
         self.rotations.clear()
+        self._undo_states.clear()
+        self._redo_states.clear()
         self._metadata_cleared = False
         self._metadata_overrides.clear()
         self._xml_metadata_override = None
@@ -171,19 +188,58 @@ class PdfDocument:
         rect = self.display_to_page(page_index, display_rect)
         if rect.width < 2 or rect.height < 2:
             return
+        self._record_content_edit()
         self.redactions.append(Redaction(page_index, tuple(rect), style))
 
     def rotate(self, page_index: int, degrees: int) -> None:
         if degrees not in (-90, 90):
             raise ValueError(degrees)
+        self._record_content_edit()
         value = (self.rotations.get(page_index, 0) + degrees) % 360
         if value:
             self.rotations[page_index] = value
         else:
             self.rotations.pop(page_index, None)
 
+    def undo(self) -> set[int]:
+        if not self._undo_states:
+            return set()
+        self._redo_states.append(self._content_state())
+        return self._restore_content_state(self._undo_states.pop())
+
+    def redo(self) -> set[int]:
+        if not self._redo_states:
+            return set()
+        self._undo_states.append(self._content_state())
+        return self._restore_content_state(self._redo_states.pop())
+
     def undo_last_redaction(self) -> int | None:
-        return self.redactions.pop().page_index if self.redactions else None
+        """Compatibility wrapper for callers of the original one-step undo."""
+        changed_pages = self.undo()
+        return min(changed_pages) if changed_pages else None
+
+    def _content_state(self) -> EditState:
+        return tuple(self.redactions), dict(self.rotations)
+
+    def _record_content_edit(self) -> None:
+        self._undo_states.append(self._content_state())
+        self._redo_states.clear()
+
+    def _restore_content_state(self, state: EditState) -> set[int]:
+        previous_redactions, previous_rotations = self._content_state()
+        next_redactions, next_rotations = state
+        page_indexes = {
+            item.page_index for item in (*previous_redactions, *next_redactions)
+        } | set(previous_rotations) | set(next_rotations)
+        changed = {
+            index for index in page_indexes
+            if ([item for item in previous_redactions if item.page_index == index]
+                != [item for item in next_redactions if item.page_index == index]
+                or previous_rotations.get(index, 0) != next_rotations.get(index, 0))
+        }
+        self.redactions = list(next_redactions)
+        self.rotations = dict(next_rotations)
+        return changed
 
     def render(self, index: int, scale: float = 1.0) -> pymupdf.Pixmap:
         page = self.page(index)
