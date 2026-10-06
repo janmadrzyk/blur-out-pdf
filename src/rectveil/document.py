@@ -255,9 +255,6 @@ class PdfDocument:
         copy = pymupdf.open(stream=self.pdf.tobytes(), filetype="pdf")
         temporary: Path | None = None
         try:
-            for index, delta in self.rotations.items():
-                page = copy.load_page(index)
-                page.set_rotation((page.rotation + delta) % 360)
             # Run general cleanup before redaction so it remains the final
             # content-removal pass on page text and form appearances.
             if self.redactions:
@@ -306,6 +303,11 @@ class PdfDocument:
             for redaction in self.redactions:
                 if redaction.style != "black":
                     self._draw_grain(copy.load_page(redaction.page_index), redaction)
+            # Redaction areas use unrotated page coordinates. Apply pending
+            # rotations after all page-space redaction operations are finished.
+            for index, delta in self.rotations.items():
+                page = copy.load_page(index)
+                page.set_rotation((page.rotation + delta) % 360)
             if self._metadata_cleared:
                 # Removing the whole Info dictionary also drops vendor-specific keys.
                 copy.xref_set_key(-1, "Info", "null")
