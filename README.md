@@ -2,6 +2,8 @@
 
 Rectveil is a small, offline Windows PDF reader focused on drawing rectangular redactions and saving a shareable copy. The project name is provisional.
 
+![Rectveil showing a pending redaction in dark mode](docs/assets/ui-preview.png)
+
 ## Current features
 
 - Open regular and password-protected PDFs; scroll through pages continuously or use single-page mode.
