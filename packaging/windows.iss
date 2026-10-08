@@ -14,6 +14,7 @@ Compression=lzma2
 SolidCompression=yes
 ChangesAssociations=yes
 UninstallDisplayIcon={app}\Rectveil.exe
+SetupIconFile=app.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

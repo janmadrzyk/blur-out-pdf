@@ -43,7 +43,7 @@ Install [Inno Setup](https://jrsoftware.org/isinfo.php), then run:
 .\packaging\build.ps1
 ```
 
-This produces `dist\Rectveil-Setup-0.1.0.exe`. The installer registers Rectveil as an **Open with** option for `.pdf` files without taking over the default PDF viewer. The application icon is a placeholder until the final artwork is supplied.
+This produces `dist\Rectveil-Setup-0.1.0.exe`. The installer registers Rectveil as an **Open with** option for `.pdf` files without taking over the default PDF viewer. The executable, installer and application window use the transparent icon derived from the supplied draft.
 
 ## Privacy and security scope
 
