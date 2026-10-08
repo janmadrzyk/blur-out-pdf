@@ -1,6 +1,6 @@
 import pymupdf
 
-from rectveil.search import find_matches, normalized
+from rectveil.search import _needs_ocr, _tessdata_directory, find_matches, normalized
 
 
 def test_polish_diacritic_normalization() -> None:
@@ -88,3 +88,30 @@ def test_search_finds_hidden_optional_layer_without_changing_visibility() -> Non
     assert len(find_matches(document, "secret", hidden_areas={0: [matches[1][1]]})) == 1
     assert document.get_layer() == original_layer
     assert "Nested" not in page.get_text()
+
+
+def test_search_uses_ocr_when_page_has_no_extractable_text() -> None:
+    if _tessdata_directory() is None:
+        import pytest
+        pytest.skip("OCR language data is not installed")
+    with pymupdf.open() as source:
+        page = source.new_page(width=400, height=200)
+        page.insert_text((30, 90), "ALPHA ALPHA", fontsize=32)
+        image = page.get_pixmap(matrix=pymupdf.Matrix(2, 2)).tobytes("png")
+    with pymupdf.open() as document:
+        page = document.new_page(width=400, height=200)
+        page.insert_image(page.rect, stream=image)
+        assert not page.get_text().strip()
+        cache: dict[int, list[dict]] = {}
+        matches = find_matches(document, "ALPHA", page_cache=cache)
+        assert len(matches) == 2
+        assert len(find_matches(document, "ALPHA", hidden_areas={0: [matches[0][1]]},
+                                page_cache=cache)) == 1
+
+
+def test_damaged_character_mapping_triggers_ocr() -> None:
+    def blocks(text: str) -> list[dict]:
+        return [{"lines": [{"spans": [{"chars": [{"c": char} for char in text]}]}]}]
+
+    assert _needs_ocr(blocks("A\x13\x05\x12"))
+    assert not _needs_ocr(blocks("ALPHA BETA"))

@@ -31,6 +31,7 @@ class DocumentTab:
     matches: list[tuple[int, pymupdf.Rect]] = field(default_factory=list)
     match_index: int = -1
     search_text: str = ""
+    search_pages: dict[int, list[dict]] = field(default_factory=dict)
 
 
 class TabBarWithPlus(QTabBar):
@@ -729,6 +730,8 @@ class MainWindow(QMainWindow):
         self.viewer.cache.clear()
         self.viewer.redaction_cache.clear()
         self.viewer.rebuild()
+        if self._active_tab:
+            self._active_tab.search_pages.clear()
         self._toggle_redaction_mode(self.redact_action.isChecked())
         self._update_search()
         self._refresh_enabled()
@@ -835,7 +838,8 @@ class MainWindow(QMainWindow):
             hidden_areas.setdefault(redaction.page_index, []).append(pymupdf.Rect(redaction.rect))
         self.matches = find_matches(self.document.pdf, self.search_field.text(),
                                     self.case_action.isChecked(), self.whole_action.isChecked(),
-                                    self.diacritics_action.isChecked(), hidden_areas)
+                                    self.diacritics_action.isChecked(), hidden_areas,
+                                    self._active_tab.search_pages if self._active_tab else None)
         self.viewer.matches = self.matches
         if self._active_tab:
             self._active_tab.matches = self.matches
