@@ -3,9 +3,24 @@
 from __future__ import annotations
 
 import unicodedata
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
 
 import pymupdf
+
+
+@contextmanager
+def _search_document(document: pymupdf.Document) -> Iterator[pymupdf.Document]:
+    """Include optional PDF layers without changing the displayed document."""
+    if not document.is_pdf or not document.get_ocgs():
+        yield document
+        return
+    # Layer state is captured when MuPDF opens a document. Changing the PDF
+    # configuration alone does not update extraction, so reopen the private copy.
+    with pymupdf.open(stream=document.tobytes(), filetype="pdf") as copy:
+        copy.set_layer(-1, basestate="ON", on=list(copy.get_ocgs()), off=[])
+        with pymupdf.open(stream=copy.tobytes(), filetype="pdf") as searchable:
+            yield searchable
 
 
 def normalized(value: str, match_case: bool, ignore_diacritics: bool) -> str:
@@ -26,10 +41,26 @@ def find_matches(
     needle = normalized(" ".join(query.split()), match_case, ignore_diacritics)
     if not needle:
         return []
+    with _search_document(document) as searchable:
+        return _find_page_matches(searchable, needle, match_case, whole_words,
+                                  ignore_diacritics, hidden_areas)
+
+
+def _find_page_matches(
+    document: pymupdf.Document,
+    needle: str,
+    match_case: bool,
+    whole_words: bool,
+    ignore_diacritics: bool,
+    hidden_areas: Mapping[int, Sequence[pymupdf.Rect]] | None,
+) -> list[tuple[int, pymupdf.Rect]]:
     results: list[tuple[int, pymupdf.Rect]] = []
+    # PDF clipping controls visibility, not whether the embedded text exists.
+    # Include clipped text (including nested Form XObjects) for privacy checks.
+    flags = pymupdf.TEXTFLAGS_RAWDICT & ~pymupdf.TEXT_CLIP & ~pymupdf.TEXT_PRESERVE_IMAGES
     for page_index, page in enumerate(document):
         areas = hidden_areas.get(page_index, ()) if hidden_areas else ()
-        for block in page.get_text("rawdict", sort=True)["blocks"]:
+        for block in page.get_text("rawdict", sort=True, flags=flags)["blocks"]:
             for line in block.get("lines", []):
                 # Keep one rectangle per normalized character. A redacted
                 # character is a barrier, so a query cannot bridge over it.

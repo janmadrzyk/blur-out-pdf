@@ -49,14 +49,23 @@ def apply_theme(app: QApplication, dark: bool) -> None:
         QMainWindow, QScrollArea, QStatusBar {{ background: {background}; color: {text}; }}
         QWidget {{ color: {text}; font-family: 'Segoe UI'; font-size: 10pt; }}
         QMenuBar, QMenu, QToolBar, QFrame#bottomBar {{ background: {surface}; color: {text}; }}
-        QTabWidget::pane {{ border-top: 1px solid {border}; }}
+        QTabWidget {{ background: {background}; }}
+        QTabWidget::pane {{ background: {surface}; border: 1px solid {border}; }}
+        QTabBar {{ background: {background}; qproperty-drawBase: 0; }}
         QTabBar::tab {{ background: {surface}; color: {text}; border: 1px solid {border}; border-bottom: none; padding: 6px 10px; }}
         QTabBar::tab:selected {{ background: {hover}; color: {text}; }}
         QTabBar::tab:hover:!selected {{ background: {hover}; }}
+        QTabBar QToolButton#newTabButton {{ color: {text}; background: {surface}; border: 1px solid {border}; border-radius: 2px; padding: 0; font-size: 15pt; }}
+        QTabBar QToolButton#newTabButton:hover {{ background: {hover}; }}
+        QTabBar QToolButton#tabCloseButton {{ color: {text}; background: transparent; border: 0; border-radius: 2px; padding: 0; font-size: 11pt; }}
+        QTabBar QToolButton#tabCloseButton:hover {{ background: {hover}; }}
         QMenuBar::item:selected, QMenu::item:selected, QToolButton:hover, QPushButton:hover {{ background: {hover}; }}
         QLineEdit, QComboBox, QSpinBox {{ background: {surface}; color: {text}; border: 1px solid {border}; border-radius: 5px; padding: 4px 6px; }}
         QToolButton, QPushButton {{ background: transparent; border: 1px solid transparent; border-radius: 5px; padding: 4px; }}
+        QToolBar QToolButton#toolbarControl, QToolBar QToolButton#redactButton {{ background: {surface}; border: 1px solid {border}; border-radius: 2px; padding: 4px; }}
+        QToolBar QToolButton#toolbarControl:hover, QToolBar QToolButton#redactButton:hover {{ background: {hover}; }}
         QToolButton:checked, QPushButton:checked {{ background: #2d77bf; color: white; }}
+        QToolBar QToolButton#redactButton:checked {{ background: #2d77bf; color: white; }}
         QMenu {{ border: 1px solid {border}; padding: 4px; }}
         QMenu::item {{ padding: 5px 20px; }}
         QSlider::groove:horizontal {{ height: 4px; background: {border}; border-radius: 2px; }}

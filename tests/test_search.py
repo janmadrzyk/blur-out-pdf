@@ -52,3 +52,39 @@ def test_search_match_box_covers_only_matching_characters() -> None:
     assert len(prefix) == len(whole) == 1
     assert prefix[0][1].x0 > whole[0][1].x0
     assert prefix[0][1].x1 < whole[0][1].x1
+
+
+def test_search_finds_clipped_text_in_nested_form_and_filters_redaction() -> None:
+    source = pymupdf.open()
+    source.new_page().insert_text((72, 72), "Nested secret")
+    document = pymupdf.open()
+    page = document.new_page()
+    page.show_pdf_page(page.rect, source, 0)
+    # Wrap the nested Form XObject in a clip that excludes all its text.
+    xref = page.get_contents()[0]
+    stream = document.xref_stream(xref)
+    document.update_stream(xref, b"q\n0 0 1 1 re W n\n" + stream + b"\nQ")
+    assert "secret" not in page.get_text()
+
+    matches = find_matches(document, "secret")
+    assert len(matches) == 1
+    assert page.rect.contains(matches[0][1])
+    assert find_matches(document, "secret", hidden_areas={0: [matches[0][1]]}) == []
+    assert len(find_matches(document, "Nested", hidden_areas={0: [matches[0][1]]})) == 1
+
+
+def test_search_finds_hidden_optional_layer_without_changing_visibility() -> None:
+    document = pymupdf.open()
+    page = document.new_page()
+    page.insert_text((72, 72), "Visible secret")
+    hidden = document.add_ocg("Hidden personal data", on=False)
+    page.insert_text((72, 120), "Nested secret", oc=hidden)
+    assert "Nested" not in page.get_text()
+    original_layer = document.get_layer()
+
+    matches = find_matches(document, "secret")
+    assert len(matches) == 2
+    assert matches[1][1].y0 > matches[0][1].y0
+    assert len(find_matches(document, "secret", hidden_areas={0: [matches[1][1]]})) == 1
+    assert document.get_layer() == original_layer
+    assert "Nested" not in page.get_text()

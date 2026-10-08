@@ -151,3 +151,36 @@ def test_search_count_and_navigation_update_for_pending_redactions(tmp_path: Pat
     assert window.search_count.text() == "1/2"
     window.close()
     app.quit()
+
+
+def test_tab_strip_and_edit_toolbar_controls_are_distinct_and_visible(tmp_path: Path) -> None:
+    app = QApplication.instance() or QApplication([])
+    source = tmp_path / "tabs.pdf"
+    with pymupdf.open() as pdf:
+        pdf.new_page()
+        pdf.save(source)
+
+    window = MainWindow()
+    window.open_path(str(source))
+    window.show()
+    app.processEvents()
+
+    last_tab = window.tab_bar.tabRect(window.tab_bar.count() - 1)
+    assert window.new_tab_button.isVisible()
+    assert window.new_tab_button.geometry().left() > last_tab.right()
+    close_button = window.tab_bar.tabButton(0, window.tab_bar.ButtonPosition.RightSide)
+    assert close_button is not None
+    assert close_button.text() == "×"
+    assert close_button.objectName() == "tabCloseButton"
+
+    toolbar_controls = [window.edit_toolbar.widgetForAction(action) for action in (
+        window.undo_action, window.redo_action, window.metadata_action,
+        window.left_action, window.right_action,
+    )]
+    assert all(control.objectName() == "toolbarControl" for control in toolbar_controls)
+    assert window.redact_button.objectName() == "redactButton"
+    assert "QTabBar { background:" in app.styleSheet()
+    assert "QToolBar QToolButton#toolbarControl" in app.styleSheet()
+
+    window.close()
+    app.quit()

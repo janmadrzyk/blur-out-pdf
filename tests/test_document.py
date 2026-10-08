@@ -3,6 +3,7 @@ from pathlib import Path
 import pymupdf
 
 from rectveil.document import PdfDocument
+from rectveil.search import find_matches
 
 
 def make_pdf(path: Path) -> None:
@@ -110,6 +111,32 @@ def test_redaction_removes_scanned_image_pixels(tmp_path: Path) -> None:
         pix = pdf[0].get_pixmap()
         assert pix.pixel(90, 90)[:3] == (0, 0, 0)
         assert pix.pixel(50, 50)[:3] == (20, 80, 220)
+
+
+def test_redaction_removes_searchable_hidden_text_after_save(tmp_path: Path) -> None:
+    source = tmp_path / "hidden.pdf"
+    result = tmp_path / "redacted.pdf"
+    with pymupdf.open() as nested:
+        nested.new_page().insert_text((72, 72), "FORM SECRET")
+        with pymupdf.open() as pdf:
+            page = pdf.new_page()
+            page.show_pdf_page(page.rect, nested, 0)
+            xref = page.get_contents()[0]
+            pdf.update_stream(xref, b"q\n0 0 1 1 re W n\n" + pdf.xref_stream(xref) + b"\nQ")
+            hidden_layer = pdf.add_ocg("Hidden text", on=False)
+            page.insert_text((72, 120), "LAYER SECRET", oc=hidden_layer)
+            pdf.save(source)
+
+    document = PdfDocument()
+    assert document.open(source)
+    matches = find_matches(document.pdf, "SECRET")
+    assert len(matches) == 2
+    for page_index, box in matches:
+        document.add_redaction(page_index, box, "black")
+    document.save(result)
+    with pymupdf.open(result) as saved:
+        assert find_matches(saved, "SECRET") == []
+    document.close()
 
 
 def test_undo_last_pending_redaction(tmp_path: Path) -> None:

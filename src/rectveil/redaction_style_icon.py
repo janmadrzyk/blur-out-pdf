@@ -7,7 +7,7 @@ from functools import lru_cache
 from PySide6.QtCore import QRect, Qt
 from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPen, QPixmap
 
-from .redaction_visual import blur_image
+from .redaction_visual import SNAPSHOT_SCALE, blur_image
 
 
 ICON_WIDTH = 44
@@ -34,19 +34,20 @@ def redaction_style_icon(style: str, dark: bool) -> QIcon:
 
     painter = QPainter(result)
     if style == "black":
-        square = QRect((width - 36) // 2, (height - 36) // 2, 36, 36)
-        painter.fillRect(square, Qt.GlobalColor.black)
-        # The outline keeps the black square visible against the dark toolbar.
+        painter.fillRect(result.rect(), Qt.GlobalColor.black)
+        # All style previews occupy the same rectangle, including black fill.
         painter.setPen(QPen(QColor("#a8b0bc" if dark else "#1d2633"), 2))
-        painter.drawRect(square.adjusted(0, 0, -1, -1))
+        painter.drawRect(result.rect().adjusted(0, 0, -1, -1))
     else:
-        # Draw at eighteen times the logical icon size, then use the PDF redaction
-        # algorithm before reducing it to the toolbar size.
-        source = QImage(ICON_WIDTH * 18, ICON_HEIGHT * 18, QImage.Format.Format_RGB32)
+        # Use the PDF snapshot scale so the word has realistic text dimensions.
+        # Oversampling the source enlarges the letters relative to the blur cells
+        # and makes the icon readable, unlike a redaction of normal-sized text.
+        source = QImage(round(ICON_WIDTH * SNAPSHOT_SCALE),
+                        round(ICON_HEIGHT * SNAPSHOT_SCALE), QImage.Format.Format_RGB32)
         source.fill(QColor("#222832" if dark else "#ffffff"))
         sample = QPainter(source)
         ink = QColor("#edf1f7" if dark else "#1d2633")
-        unit = 30
+        unit = 5
         left = (source.width() - 23 * unit) // 2
         top = (source.height() - 7 * unit) // 2
         for letter_index, rows in enumerate(LETTER_BITMAPS):

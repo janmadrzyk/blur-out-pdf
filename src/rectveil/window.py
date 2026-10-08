@@ -33,6 +33,44 @@ class DocumentTab:
     search_text: str = ""
 
 
+class TabBarWithPlus(QTabBar):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.plus_button = QToolButton(self)
+        self.plus_button.setObjectName("newTabButton")
+        self.plus_button.setText("+")
+        self.plus_button.setAutoRaise(True)
+        self.plus_button.setFixedSize(25, 25)
+
+    def _place_plus_button(self) -> None:
+        if not hasattr(self, "plus_button"):
+            return
+        if self.count() == 0:
+            self.plus_button.hide()
+            return
+        last = self.tabRect(self.count() - 1)
+        x = last.right() + 4
+        y = max(0, (self.height() - self.plus_button.height()) // 2)
+        self.plus_button.move(x, y)
+        self.plus_button.setVisible(x + self.plus_button.width() <= self.width())
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._place_plus_button()
+
+    def tabLayoutChange(self) -> None:
+        super().tabLayoutChange()
+        self._place_plus_button()
+
+    def tabInserted(self, index: int) -> None:
+        super().tabInserted(index)
+        self._place_plus_button()
+
+    def tabRemoved(self, index: int) -> None:
+        super().tabRemoved(index)
+        self._place_plus_button()
+
+
 class MainWindow(QMainWindow):
     def __init__(self, initial_path: str | None = None) -> None:
         super().__init__()
@@ -53,17 +91,16 @@ class MainWindow(QMainWindow):
         self._document_tabs: dict[PdfViewer, DocumentTab] = {}
         self._active_tab: DocumentTab | None = None
         self.tabs = QTabWidget(self)
+        self.tab_bar = TabBarWithPlus(self.tabs)
+        self.tabs.setTabBar(self.tab_bar)
         self.tabs.setDocumentMode(True)
         self.tabs.setMovable(True)
         self.tabs.setTabsClosable(True)
         self.tabs.addTab(self._placeholder_viewer, self.t("no_document_tab"))
         self.tabs.tabBar().setTabButton(0, QTabBar.ButtonPosition.RightSide, None)
         self.tabs.tabCloseRequested.connect(self.close_tab)
-        self.new_tab_button = QToolButton(self.tabs)
-        self.new_tab_button.setText("+")
-        self.new_tab_button.setAutoRaise(True)
+        self.new_tab_button = self.tab_bar.plus_button
         self.new_tab_button.clicked.connect(self.open_dialog)
-        self.tabs.setCornerWidget(self.new_tab_button, Qt.Corner.TopRightCorner)
         self.main_content = QWidget(self)
         self.main_layout = QVBoxLayout(self.main_content)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
@@ -283,6 +320,7 @@ class MainWindow(QMainWindow):
         self.redact_action.setCheckable(True)
         self.redact_action.toggled.connect(self._toggle_redaction_mode)
         self.redact_button = QToolButton(self.edit_toolbar)
+        self.redact_button.setObjectName("redactButton")
         self.redact_button.setCheckable(True)
         self.redact_button.setAutoRaise(True)
         self.redact_button.setMinimumHeight(34)
@@ -309,6 +347,26 @@ class MainWindow(QMainWindow):
         self.right_action = self.edit_toolbar.addAction("")
         self.left_action.triggered.connect(lambda: self._rotate(-90))
         self.right_action.triggered.connect(lambda: self._rotate(90))
+        for action in (self.undo_action, self.redo_action, self.metadata_action,
+                       self.left_action, self.right_action):
+            control = self.edit_toolbar.widgetForAction(action)
+            if isinstance(control, QToolButton):
+                control.setObjectName("toolbarControl")
+
+    def _install_tab_close_button(self, index: int) -> None:
+        close_button = QToolButton(self.tab_bar)
+        close_button.setObjectName("tabCloseButton")
+        close_button.setText("×")
+        close_button.setAutoRaise(True)
+        close_button.setFixedSize(18, 18)
+        self.tab_bar.setTabButton(index, QTabBar.ButtonPosition.RightSide, close_button)
+        close_button.clicked.connect(lambda _checked=False, button=close_button: self._close_button_clicked(button))
+
+    def _close_button_clicked(self, button: QToolButton) -> None:
+        for index in range(self.tabs.count()):
+            if self.tab_bar.tabButton(index, QTabBar.ButtonPosition.RightSide) is button:
+                self.tabs.tabCloseRequested.emit(index)
+                return
 
     def _make_bottom_bar(self) -> None:
         self.bottom = QFrame()
@@ -633,6 +691,7 @@ class MainWindow(QMainWindow):
         if placeholder_index >= 0:
             self.tabs.removeTab(placeholder_index)
         index = self.tabs.addTab(viewer, document.path.name if document.path else resolved_path.name)
+        self._install_tab_close_button(index)
         self.tabs.setTabToolTip(index, str(document.path or resolved_path))
         self.tabs.setCurrentIndex(index)
         self.statusBar().showMessage(str(document.path))
