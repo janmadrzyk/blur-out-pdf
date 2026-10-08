@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unicodedata
+from collections.abc import Mapping, Sequence
 
 import pymupdf
 
@@ -20,37 +21,43 @@ def find_matches(
     match_case: bool = False,
     whole_words: bool = False,
     ignore_diacritics: bool = False,
+    hidden_areas: Mapping[int, Sequence[pymupdf.Rect]] | None = None,
 ) -> list[tuple[int, pymupdf.Rect]]:
-    needle = normalized(query.strip(), match_case, ignore_diacritics)
+    needle = normalized(" ".join(query.split()), match_case, ignore_diacritics)
     if not needle:
         return []
     results: list[tuple[int, pymupdf.Rect]] = []
     for page_index, page in enumerate(document):
-        words = page.get_text("words", sort=True)
-        # Join adjacent words on a line so ordinary multi-word queries work.
-        groups: dict[tuple[int, int], list[tuple]] = {}
-        for word in words:
-            groups.setdefault((int(word[5]), int(word[6])), []).append(word)
-        for line in groups.values():
-            line.sort(key=lambda item: item[7])
-            pieces = [normalized(str(item[4]), match_case, ignore_diacritics) for item in line]
-            haystack = " ".join(pieces)
-            offsets = []
-            cursor = 0
-            for piece in pieces:
-                offsets.append((cursor, cursor + len(piece)))
-                cursor += len(piece) + 1
-            offset = 0
-            while (start := haystack.find(needle, offset)) >= 0:
-                end = start + len(needle)
-                left_ok = start == 0 or not haystack[start - 1].isalnum()
-                right_ok = end == len(haystack) or not haystack[end].isalnum()
-                if not whole_words or (left_ok and right_ok):
-                    matching = [item for item, (a, b) in zip(line, offsets) if a < end and b > start]
-                    if matching:
-                        rect = pymupdf.Rect(matching[0][:4])
-                        for item in matching[1:]:
-                            rect |= pymupdf.Rect(item[:4])
-                        results.append((page_index, rect))
-                offset = start + max(1, len(needle))
+        areas = hidden_areas.get(page_index, ()) if hidden_areas else ()
+        for block in page.get_text("rawdict", sort=True)["blocks"]:
+            for line in block.get("lines", []):
+                # Keep one rectangle per normalized character. A redacted
+                # character is a barrier, so a query cannot bridge over it.
+                characters: list[str] = []
+                boxes: list[pymupdf.Rect | None] = []
+                for span in line.get("spans", []):
+                    for char in span.get("chars", []):
+                        box = pymupdf.Rect(char["bbox"])
+                        if any(box.intersects(area) for area in areas):
+                            characters.append("\0")
+                            boxes.append(None)
+                            continue
+                        value = normalized(char["c"], match_case, ignore_diacritics)
+                        for part in value:
+                            characters.append(" " if part.isspace() else part)
+                            boxes.append(box)
+                haystack = "".join(characters)
+                offset = 0
+                while (start := haystack.find(needle, offset)) >= 0:
+                    end = start + len(needle)
+                    left_ok = start == 0 or not haystack[start - 1].isalnum()
+                    right_ok = end == len(haystack) or not haystack[end].isalnum()
+                    if not whole_words or (left_ok and right_ok):
+                        matching = [box for box in boxes[start:end] if box is not None]
+                        if matching:
+                            rect = pymupdf.Rect(matching[0])
+                            for box in matching[1:]:
+                                rect |= box
+                            results.append((page_index, rect))
+                    offset = start + 1
     return results

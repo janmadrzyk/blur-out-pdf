@@ -7,7 +7,7 @@ from typing import Callable
 import unicodedata
 import xml.etree.ElementTree as ET
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
     QDialog, QDialogButtonBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel,
     QLineEdit, QMenu, QMessageBox, QPushButton, QScrollArea, QToolButton,
@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from .metadata import METADATA_FIELDS, XmpValue, extract_xmp_values, update_xmp_values
+from .appearance import icon
 from .search import normalized
 
 
@@ -58,7 +59,12 @@ class MetadataEditorDialog(QDialog):
         self.next_button.clicked.connect(lambda _checked=False: self._step_match(1))
         search_row.addWidget(self.next_button)
         self.search_options = QToolButton()
-        self.search_options.setText("⋮")
+        self.search_options.setIcon(
+            icon("options", "#e7edf6" if getattr(parent, "dark", False) else "#293241"),
+        )
+        self.search_options.setIconSize(QSize(20, 20))
+        self.search_options.setArrowType(Qt.ArrowType.NoArrow)
+        self.search_options.setStyleSheet("QToolButton::menu-indicator { image: none; width: 0px; }")
         self.search_options.setToolTip(self.t("search_options"))
         self.search_options.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.search_menu = QMenu(self)

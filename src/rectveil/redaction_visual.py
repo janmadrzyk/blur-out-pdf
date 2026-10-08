@@ -68,6 +68,25 @@ def render_blur_png(
             painter.drawImage(target, overlay_image.copy(source_rect))
     painter.end()
 
+    blurred = blur_image(source, style, f"{page.number}:{tuple(area)}:{style}")
+
+    encoded = QByteArray()
+    buffer = QBuffer(encoded)
+    if not buffer.open(QIODevice.OpenModeFlag.WriteOnly):
+        raise RuntimeError("Could not encode the redaction preview")
+    try:
+        if not blurred.save(buffer, "PNG"):
+            raise RuntimeError("Could not encode the redaction preview")
+    finally:
+        buffer.close()
+    return bytes(encoded)
+
+
+def blur_image(source: QImage, style: str, seed: str) -> QImage:
+    """Apply the same fine or coarse redaction texture to a rendered image."""
+    if style not in ("fine", "coarse"):
+        raise ValueError(f"Unsupported blur style: {style}")
+
     points_per_cell = 10 if style == "fine" else 18
     cell_pixels = points_per_cell * SNAPSHOT_SCALE
     small = source.scaled(
@@ -86,7 +105,7 @@ def render_blur_png(
     grain_step = 2 if style == "fine" else 7
     grain_width = max(1, (source.width() + grain_step - 1) // grain_step)
     grain_height = max(1, (source.height() + grain_step - 1) // grain_step)
-    rng = random.Random(f"{page.number}:{tuple(area)}:{style}")
+    rng = random.Random(seed)
     rgba = bytearray(grain_width * grain_height * 4)
     for offset in range(0, len(rgba), 4):
         shade = rng.randrange(40, 216)
@@ -104,13 +123,4 @@ def render_blur_png(
     painter.drawImage(0, 0, grain)
     painter.end()
 
-    encoded = QByteArray()
-    buffer = QBuffer(encoded)
-    if not buffer.open(QIODevice.OpenModeFlag.WriteOnly):
-        raise RuntimeError("Could not encode the redaction preview")
-    try:
-        if not blurred.save(buffer, "PNG"):
-            raise RuntimeError("Could not encode the redaction preview")
-    finally:
-        buffer.close()
-    return bytes(encoded)
+    return blurred

@@ -11,14 +11,15 @@ from PySide6.QtCore import QPoint, QSettings, QStandardPaths, QSize, Qt
 from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QFileDialog, QFrame, QHBoxLayout, QInputDialog,
-    QLineEdit, QMainWindow, QMenu, QMessageBox, QSlider,
-    QTabBar, QTabWidget, QToolBar, QToolButton, QWidget,
+    QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QSlider,
+    QTabBar, QTabWidget, QToolBar, QToolButton, QVBoxLayout, QWidget,
 )
 
-from .appearance import apply_theme, icon, system_dark
+from .appearance import apply_theme, icon, resolve_dark
 from .document import PdfDocument, STYLES
 from .i18n import default_language, translate
 from .metadata_dialog import MetadataEditorDialog
+from .redaction_style_icon import redaction_style_icon
 from .search import find_matches
 from .viewer import PdfViewer
 
@@ -41,7 +42,10 @@ class MainWindow(QMainWindow):
         self.style_name = str(self.settings.value("redaction_style", "black"))
         if self.style_name not in STYLES:
             self.style_name = "black"
-        self.dark = system_dark(QApplication.instance())
+        self.appearance_name = str(self.settings.value("appearance", "system"))
+        if self.appearance_name not in ("system", "light", "dark"):
+            self.appearance_name = "system"
+        self.dark = resolve_dark(QApplication.instance(), self.appearance_name)
         self._placeholder_document = PdfDocument()
         self._placeholder_viewer = PdfViewer(self._placeholder_document)
         self.document = self._placeholder_document
@@ -60,7 +64,12 @@ class MainWindow(QMainWindow):
         self.new_tab_button.setAutoRaise(True)
         self.new_tab_button.clicked.connect(self.open_dialog)
         self.tabs.setCornerWidget(self.new_tab_button, Qt.Corner.TopRightCorner)
-        self.setCentralWidget(self.tabs)
+        self.main_content = QWidget(self)
+        self.main_layout = QVBoxLayout(self.main_content)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
+        self.main_layout.addWidget(self.tabs, 1)
+        self.setCentralWidget(self.main_content)
         self._wire_viewer(self._placeholder_viewer)
         self.matches: list[tuple[int, pymupdf.Rect]] = []
         self.match_index = -1
@@ -73,7 +82,7 @@ class MainWindow(QMainWindow):
         QApplication.instance().styleHints().colorSchemeChanged.connect(self._on_color_scheme_changed)
         self._refresh_enabled()
         self._on_tab_changed(self.tabs.currentIndex())
-        self.setMinimumSize(760, 520)
+        self.setMinimumSize(max(760, self.bottom.sizeHint().width()), 520)
         self.resize(1180, 800)
         self.statusBar().showMessage(self.t("ready"))
         if initial_path:
@@ -111,6 +120,11 @@ class MainWindow(QMainWindow):
             self.search_field.blockSignals(True)
             self.search_field.setText(context.search_text)
             self.search_field.blockSignals(False)
+            self._update_search(navigate=False)
+        if context is None:
+            self.search_count.clear()
+            self.search_prev.setEnabled(False)
+            self.search_next.setEnabled(False)
         self.viewer.redaction_mode = self.redact_action.isChecked()
         for canvas in self.viewer.canvases:
             canvas.setCursor(
@@ -191,6 +205,17 @@ class MainWindow(QMainWindow):
         self.pl_action.triggered.connect(lambda: self.set_language("pl"))
         self.en_action.triggered.connect(lambda: self.set_language("en"))
 
+        self.appearance_menu = self.settings_menu.addMenu("")
+        appearance_group = QActionGroup(self)
+        appearance_group.setExclusive(True)
+        self.appearance_actions = {}
+        for name in ("system", "light", "dark"):
+            action = self.appearance_menu.addAction("")
+            action.setCheckable(True)
+            appearance_group.addAction(action)
+            action.triggered.connect(lambda checked=False, value=name: self.set_appearance(value))
+            self.appearance_actions[name] = action
+
         self.style_menu = self.settings_menu.addMenu("")
         style_group = QActionGroup(self)
         style_group.setExclusive(True)
@@ -217,11 +242,20 @@ class MainWindow(QMainWindow):
         self.search_field.returnPressed.connect(lambda: self.step_match(1))
         self.search_field.textChanged.connect(self._update_search)
         row.addWidget(self.search_field)
+        self.search_count = QLabel("")
+        self.search_count.setMinimumWidth(42)
+        self.search_count.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        row.addWidget(self.search_count)
         self.search_prev = self._button("prev", self.step_previous_match)
         self.search_next = self._button("next", lambda: self.step_match(1))
         row.addWidget(self.search_prev)
         row.addWidget(self.search_next)
         self.search_options = self._button("options")
+        self.search_options.setIconSize(QSize(20, 20))
+        self.search_options.setArrowType(Qt.ArrowType.NoArrow)
+        self.search_options.setStyleSheet(
+            "QToolButton::menu-indicator { image: none; width: 0px; }",
+        )
         self.search_options.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.search_menu = QMenu(self)
         self.case_action = self.search_menu.addAction("")
@@ -245,9 +279,27 @@ class MainWindow(QMainWindow):
         self.edit_toolbar.setMovable(False)
         self.edit_toolbar.setIconSize(QSize(22, 22))
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.edit_toolbar)
-        self.redact_action = self.edit_toolbar.addAction("")
+        self.redact_action = QAction("", self)
         self.redact_action.setCheckable(True)
         self.redact_action.toggled.connect(self._toggle_redaction_mode)
+        self.redact_button = QToolButton(self.edit_toolbar)
+        self.redact_button.setCheckable(True)
+        self.redact_button.setAutoRaise(True)
+        self.redact_button.setMinimumHeight(34)
+        redact_row = QHBoxLayout(self.redact_button)
+        redact_row.setContentsMargins(7, 2, 7, 2)
+        redact_row.setSpacing(6)
+        self.redact_label = QLabel(self.redact_button)
+        self.redact_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        redact_row.addWidget(self.redact_label)
+        self.redact_icon_label = QLabel(self.redact_button)
+        self.redact_icon_label.setFixedSize(48, 26)
+        self.redact_icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.redact_icon_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        redact_row.addWidget(self.redact_icon_label)
+        self.redact_button.toggled.connect(self.redact_action.setChecked)
+        self.redact_action.toggled.connect(self.redact_button.setChecked)
+        self.edit_toolbar.addWidget(self.redact_button)
         self.edit_toolbar.addAction(self.undo_action)
         self.edit_toolbar.addAction(self.redo_action)
         self.edit_toolbar.addSeparator()
@@ -264,7 +316,10 @@ class MainWindow(QMainWindow):
         row = QHBoxLayout(self.bottom)
         row.setContentsMargins(10, 4, 10, 4)
         row.setSpacing(2)
-        row.addStretch(1)
+        self.page_controls = QWidget(self.bottom)
+        page_row = QHBoxLayout(self.page_controls)
+        page_row.setContentsMargins(0, 0, 0, 0)
+        page_row.setSpacing(2)
         self.first_button = self._button("first", lambda: self.viewer.go_to_page(0))
         self.prev_button = self._button("prev", lambda: self.viewer.go_to_page(self.viewer.current_page - 1))
         self.next_button = self._button("next", lambda: self.viewer.go_to_page(self.viewer.current_page + 1))
@@ -274,15 +329,19 @@ class MainWindow(QMainWindow):
         self.page_field.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.page_field.returnPressed.connect(self._jump_to_page)
         for widget in (self.first_button, self.prev_button, self.page_field, self.next_button, self.last_button):
-            row.addWidget(widget)
-        row.addStretch(1)
+            page_row.addWidget(widget)
+
+        self.zoom_controls = QWidget(self.bottom)
+        zoom_row = QHBoxLayout(self.zoom_controls)
+        zoom_row.setContentsMargins(0, 0, 0, 0)
+        zoom_row.setSpacing(2)
         self.single_button = self._button("single", lambda: self._set_layout("single"))
         self.continuous_button = self._button("continuous", lambda: self._set_layout("continuous"))
         for button in (self.single_button, self.continuous_button):
             button.setCheckable(True)
-            row.addWidget(button)
+            zoom_row.addWidget(button)
         self.continuous_button.setChecked(True)
-        row.addSpacing(12)
+        zoom_row.addSpacing(12)
         self.zoom_list = QComboBox()
         self.zoom_list.setEditable(True)
         self.zoom_list.setFixedWidth(130)
@@ -294,14 +353,22 @@ class MainWindow(QMainWindow):
         self.zoom_list.setCurrentText("125%")
         self.zoom_list.activated.connect(self._zoom_from_combo)
         self.zoom_list.lineEdit().returnPressed.connect(self._zoom_from_combo)
-        row.addWidget(self.zoom_list)
+        zoom_row.addWidget(self.zoom_list)
         self.zoom_slider = QSlider(Qt.Orientation.Horizontal)
         self.zoom_slider.setRange(25, 500)
         self.zoom_slider.setValue(125)
         self.zoom_slider.setFixedWidth(120)
         self.zoom_slider.valueChanged.connect(lambda value: self._set_zoom(value / 100))
-        row.addWidget(self.zoom_slider)
-        self.statusBar().addPermanentWidget(self.bottom, 1)
+        zoom_row.addWidget(self.zoom_slider)
+
+        self.left_balance = QWidget(self.bottom)
+        self.left_balance.setFixedWidth(self.zoom_controls.sizeHint().width())
+        row.addWidget(self.left_balance)
+        row.addStretch(1)
+        row.addWidget(self.page_controls)
+        row.addStretch(1)
+        row.addWidget(self.zoom_controls)
+        self.main_layout.addWidget(self.bottom)
 
     def _button(self, icon_name: str, callback=None) -> QToolButton:
         button = QToolButton(self)
@@ -312,6 +379,8 @@ class MainWindow(QMainWindow):
 
     def _apply_theme(self) -> None:
         apply_theme(QApplication.instance(), self.dark)
+        self.left_balance.setFixedWidth(self.zoom_controls.sizeHint().width())
+        self.setMinimumWidth(max(760, self.bottom.sizeHint().width()))
         color = "#e7edf6" if self.dark else "#293241"
         for button, name in ((self.search_prev, "prev"), (self.search_next, "next"),
                              (self.search_options, "options"), (self.search_clear, "close"), (self.first_button, "first"),
@@ -319,15 +388,25 @@ class MainWindow(QMainWindow):
                              (self.last_button, "last"), (self.single_button, "single"),
                              (self.continuous_button, "continuous")):
             button.setIcon(icon(name, color))
-        for action, name in ((self.redact_action, "redact"), (self.undo_action, "undo"),
-                             (self.redo_action, "redo"), (self.left_action, "left"),
+        for action, name in ((self.undo_action, "undo"), (self.redo_action, "redo"), (self.left_action, "left"),
                              (self.right_action, "right")):
             action.setIcon(icon(name, color))
         self.metadata_action.setIcon(icon("metadata", color))
+        self._update_redact_presentation()
+
+    def _update_redact_presentation(self) -> None:
+        preview = redaction_style_icon(self.style_name, self.dark)
+        self.redact_icon_label.setPixmap(preview.pixmap(QSize(44, 22)))
+        color = "#ffffff" if self.redact_button.isChecked() else ("#edf1f7" if self.dark else "#1d2633")
+        self.redact_label.setStyleSheet(f"color: {color};")
+        self.redact_label.adjustSize()
+        self.redact_button.layout().invalidate()
+        self.redact_button.setFixedWidth(self.redact_button.layout().sizeHint().width())
 
     def _on_color_scheme_changed(self, scheme) -> None:
-        self.dark = scheme == Qt.ColorScheme.Dark
-        self._apply_theme()
+        if self.appearance_name == "system":
+            self.dark = resolve_dark(QApplication.instance(), "system")
+            self._apply_theme()
 
     def _translate_ui(self) -> None:
         for target, key in ((self.file_menu, "file"), (self.open_action, "open"),
@@ -337,7 +416,8 @@ class MainWindow(QMainWindow):
                             (self.undo_action, "undo"), (self.redo_action, "redo"),
                             (self.settings_menu, "settings"),
                             (self.language_menu, "language"), (self.pl_action, "polish"),
-                            (self.en_action, "english"), (self.style_menu, "style"),
+                            (self.en_action, "english"), (self.appearance_menu, "appearance"),
+                            (self.style_menu, "style"),
                             (self.toolbar_action, "show_toolbar"), (self.case_action, "case"),
                             (self.whole_action, "whole"), (self.diacritics_action, "diacritics"),
                             (self.redact_action, "redact"), (self.undo_action, "undo_redaction"), (self.left_action, "rotate_left"),
@@ -349,6 +429,13 @@ class MainWindow(QMainWindow):
         for name, action in self.style_actions.items():
             action.setText(self.t(name))
             action.setChecked(self.style_name == name)
+        for name, action in self.appearance_actions.items():
+            action.setText(self.t(f"appearance_{name}"))
+            action.setChecked(self.appearance_name == name)
+        self.redact_label.setText(self.t("redact"))
+        self.redact_button.setAccessibleName(self.t("redact"))
+        self.redact_button.setToolTip(self.t("redact"))
+        self._update_redact_presentation()
         self.pl_action.setChecked(self.language == "pl")
         self.en_action.setChecked(self.language == "en")
         self.search_field.setPlaceholderText(self.t("find_placeholder"))
@@ -370,7 +457,7 @@ class MainWindow(QMainWindow):
     def _refresh_enabled(self) -> None:
         has_document = self.document.is_open
         for control in (self.save_action, self.save_as_action, self.metadata_action, self.redact_action,
-                        self.left_action, self.right_action, self.first_button,
+                        self.redact_button, self.left_action, self.right_action, self.first_button,
                         self.prev_button, self.page_field, self.next_button, self.last_button,
                         self.single_button, self.continuous_button, self.zoom_list,
                         self.zoom_slider, self.search_field):
@@ -395,11 +482,22 @@ class MainWindow(QMainWindow):
         self.settings.setValue("language", language)
         self._translate_ui()
 
+    def set_appearance(self, appearance: str) -> None:
+        if appearance not in ("system", "light", "dark"):
+            raise ValueError(appearance)
+        self.appearance_name = appearance
+        self.settings.setValue("appearance", appearance)
+        for name, action in self.appearance_actions.items():
+            action.setChecked(name == appearance)
+        self.dark = resolve_dark(QApplication.instance(), appearance)
+        self._apply_theme()
+
     def set_style(self, style: str) -> None:
         self.style_name = style
         self.settings.setValue("redaction_style", style)
         for name, action in self.style_actions.items():
             action.setChecked(name == style)
+        self._update_redact_presentation()
 
     def _edit_metadata(self) -> None:
         if not self.document.is_open:
@@ -423,6 +521,7 @@ class MainWindow(QMainWindow):
 
     def _toggle_redaction_mode(self, enabled: bool) -> None:
         self.viewer.redaction_mode = enabled
+        self._update_redact_presentation()
         for canvas in self.viewer.canvases:
             canvas.setCursor(Qt.CursorShape.CrossCursor if enabled else Qt.CursorShape.ArrowCursor)
         if enabled:
@@ -435,12 +534,14 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, self.t("error"), self.t("redaction_error", error=error))
             return
         self.viewer.canvases[index].update()
+        self._update_search()
         self._refresh_history_actions()
         self._update_title()
         self.statusBar().showMessage(self.t("redaction_added"))
 
     def _redaction_edited(self, index: int) -> None:
         self.viewer.canvases[index].update()
+        self._update_search()
         self._refresh_history_actions()
         self._update_title()
         self.statusBar().showMessage(self.t("redaction_updated"))
@@ -453,12 +554,14 @@ class MainWindow(QMainWindow):
     def _undo_content(self, *_args) -> None:
         for index in self.document.undo():
             self.viewer.refresh_page(index)
+        self._update_search()
         self._refresh_history_actions()
         self._update_title()
 
     def _redo_content(self, *_args) -> None:
         for index in self.document.redo():
             self.viewer.refresh_page(index)
+        self._update_search()
         self._refresh_history_actions()
         self._update_title()
 
@@ -662,24 +765,43 @@ class MainWindow(QMainWindow):
         self.search_field.setFocus()
         self.search_field.selectAll()
 
-    def _update_search(self) -> None:
+    def _update_search(self, *_args, navigate: bool = True) -> None:
         if self.document.pdf is None:
             return
         if self._active_tab:
             self._active_tab.search_text = self.search_field.text()
+        previous_index = self.match_index
+        hidden_areas: dict[int, list[pymupdf.Rect]] = {}
+        for redaction in self.document.redactions:
+            hidden_areas.setdefault(redaction.page_index, []).append(pymupdf.Rect(redaction.rect))
         self.matches = find_matches(self.document.pdf, self.search_field.text(),
                                     self.case_action.isChecked(), self.whole_action.isChecked(),
-                                    self.diacritics_action.isChecked())
+                                    self.diacritics_action.isChecked(), hidden_areas)
         self.viewer.matches = self.matches
         if self._active_tab:
             self._active_tab.matches = self.matches
         for canvas in self.viewer.canvases:
             canvas.update()
-        self.match_index = -1
+        self.search_prev.setEnabled(bool(self.matches))
+        self.search_next.setEnabled(bool(self.matches))
         if self.matches:
-            self.step_match(1)
-        elif self.search_field.text():
+            if navigate:
+                self.match_index = -1
+                self.step_match(1)
+            else:
+                self.match_index = min(max(previous_index, 0), len(self.matches) - 1)
+                if self._active_tab:
+                    self._active_tab.match_index = self.match_index
+                self.search_count.setText(f"{self.match_index + 1}/{len(self.matches)}")
+        else:
+            self.match_index = -1
+            if self._active_tab:
+                self._active_tab.match_index = -1
+            self.search_count.setText("0/0" if self.search_field.text().strip() else "")
+        if not self.matches and self.search_field.text().strip() and navigate:
             self.statusBar().showMessage(self.t("no_results"))
+        elif not self.search_field.text().strip() and navigate:
+            self.statusBar().showMessage(str(self.document.path) if self.document.path else self.t("ready"))
 
     def step_previous_match(self) -> None:
         self.step_match(-1)
@@ -690,6 +812,7 @@ class MainWindow(QMainWindow):
         self.match_index = (self.match_index + direction) % len(self.matches)
         if self._active_tab:
             self._active_tab.match_index = self.match_index
+        self.search_count.setText(f"{self.match_index + 1}/{len(self.matches)}")
         index, rect = self.matches[self.match_index]
         self.viewer.show_match(index, rect)
         self.statusBar().showMessage(self.t("matches", current=self.match_index + 1, total=len(self.matches)))

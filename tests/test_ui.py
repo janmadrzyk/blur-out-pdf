@@ -120,3 +120,34 @@ def test_document_tabs_keep_search_edits_and_saves_separate(tmp_path: Path) -> N
     assert window.tabs.count() == 1
     window.close()
     app.quit()
+
+
+def test_search_count_and_navigation_update_for_pending_redactions(tmp_path: Path) -> None:
+    app = QApplication.instance() or QApplication([])
+    source = tmp_path / "search.pdf"
+    with pymupdf.open() as pdf:
+        page = pdf.new_page()
+        page.insert_text((50, 80), "ALPHA ALPHA BETA", fontsize=18)
+        pdf.save(source)
+
+    window = MainWindow()
+    window.open_path(str(source))
+    window.search_field.setText("ALPHA")
+    assert len(window.matches) == 2
+    assert window.search_count.text() == "1/2"
+    assert window.viewer.matches == window.matches
+    window.search_next.click()
+    assert window.search_count.text() == "2/2"
+    window.search_prev.click()
+    assert window.search_count.text() == "1/2"
+
+    first = window.document.page(0).search_for("ALPHA")[0]
+    window._add_redaction(0, window.document.page_to_display(0, first))
+    assert len(window.matches) == 1
+    assert window.search_count.text() == "1/1"
+    assert window.matches[0][1].x0 > first.x1
+    window.undo_action.trigger()
+    assert len(window.matches) == 2
+    assert window.search_count.text() == "1/2"
+    window.close()
+    app.quit()

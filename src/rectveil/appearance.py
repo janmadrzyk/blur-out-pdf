@@ -21,13 +21,14 @@ PATHS = {
     "last": '<path d="M19 5v14M6 5l9 7-9 7"/>',
     "single": '<rect x="6" y="3" width="12" height="18" rx="1"/>',
     "continuous": '<rect x="6" y="2" width="12" height="9" rx="1"/><rect x="6" y="13" width="12" height="9" rx="1"/>',
-    "options": '<circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>',
+    "options": '<circle cx="12" cy="5" r="1.8" fill="{color}" stroke="none"/><circle cx="12" cy="12" r="1.8" fill="{color}" stroke="none"/><circle cx="12" cy="19" r="1.8" fill="{color}" stroke="none"/>',
     "close": '<path d="M6 6l12 12M18 6 6 18"/>',
 }
 
 
 def icon(name: str, color: str = "#293241") -> QIcon:
-    svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">{PATHS[name]}</svg>'
+    paths = PATHS[name].replace("{color}", color)
+    svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">{paths}</svg>'
     pixmap = QPixmap(24, 24)
     pixmap.fill(Qt.GlobalColor.transparent)
     renderer = QSvgRenderer(QByteArray(svg.encode()))
@@ -48,6 +49,10 @@ def apply_theme(app: QApplication, dark: bool) -> None:
         QMainWindow, QScrollArea, QStatusBar {{ background: {background}; color: {text}; }}
         QWidget {{ color: {text}; font-family: 'Segoe UI'; font-size: 10pt; }}
         QMenuBar, QMenu, QToolBar, QFrame#bottomBar {{ background: {surface}; color: {text}; }}
+        QTabWidget::pane {{ border-top: 1px solid {border}; }}
+        QTabBar::tab {{ background: {surface}; color: {text}; border: 1px solid {border}; border-bottom: none; padding: 6px 10px; }}
+        QTabBar::tab:selected {{ background: {hover}; color: {text}; }}
+        QTabBar::tab:hover:!selected {{ background: {hover}; }}
         QMenuBar::item:selected, QMenu::item:selected, QToolButton:hover, QPushButton:hover {{ background: {hover}; }}
         QLineEdit, QComboBox, QSpinBox {{ background: {surface}; color: {text}; border: 1px solid {border}; border-radius: 5px; padding: 4px 6px; }}
         QToolButton, QPushButton {{ background: transparent; border: 1px solid transparent; border-radius: 5px; padding: 4px; }}
@@ -56,8 +61,22 @@ def apply_theme(app: QApplication, dark: bool) -> None:
         QMenu::item {{ padding: 5px 20px; }}
         QSlider::groove:horizontal {{ height: 4px; background: {border}; border-radius: 2px; }}
         QSlider::handle:horizontal {{ width: 14px; margin: -6px 0; background: #2d77bf; border-radius: 7px; }}
+        QScrollBar:vertical {{ background: {background}; width: 12px; margin: 0; }}
+        QScrollBar:horizontal {{ background: {background}; height: 12px; margin: 0; }}
+        QScrollBar::handle:vertical, QScrollBar::handle:horizontal {{ background: {border}; border-radius: 5px; min-width: 24px; min-height: 24px; }}
+        QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; }}
+        QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}
     """)
 
 
 def system_dark(app: QApplication) -> bool:
     return app.styleHints().colorScheme() == Qt.ColorScheme.Dark
+
+
+def resolve_dark(app: QApplication, preference: str) -> bool:
+    """Resolve an appearance preference to the palette's dark-mode flag."""
+    if preference == "dark":
+        return True
+    if preference == "light":
+        return False
+    return system_dark(app)
