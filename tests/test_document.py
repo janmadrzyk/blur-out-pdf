@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pymupdf
 
-from rectveil.document import PdfDocument
-from rectveil.search import find_matches
+from blurout_pdf.document import PdfDocument
+from blurout_pdf.search import find_matches
 
 
 def make_pdf(path: Path) -> None:

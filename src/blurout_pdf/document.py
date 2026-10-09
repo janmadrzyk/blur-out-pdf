@@ -390,7 +390,7 @@ class PdfDocument:
                     copy.set_xml_metadata(self._xml_metadata_override)
                 else:
                     copy.del_xml_metadata()
-            with tempfile.NamedTemporaryFile(suffix=".pdf", prefix="rectveil-", dir=destination.parent, delete=False) as handle:
+            with tempfile.NamedTemporaryFile(suffix=".pdf", prefix="blurout-pdf-", dir=destination.parent, delete=False) as handle:
                 temporary = Path(handle.name)
             copy.save(str(temporary), garbage=4, clean=True, deflate=True, encryption=pymupdf.PDF_ENCRYPT_NONE)
             # A failed reopen must never replace the user's existing file.

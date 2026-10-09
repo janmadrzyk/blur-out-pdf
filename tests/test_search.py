@@ -2,8 +2,8 @@ import pymupdf
 import pytest
 from pathlib import Path
 
-import rectveil.search as search
-from rectveil.search import _needs_ocr, find_matches, normalized
+import blurout_pdf.search as search
+from blurout_pdf.search import _needs_ocr, find_matches, normalized
 
 
 def test_polish_diacritic_normalization() -> None:
@@ -94,7 +94,7 @@ def test_search_finds_hidden_optional_layer_without_changing_visibility() -> Non
 
 
 def test_search_uses_ocr_when_page_has_no_extractable_text() -> None:
-    bundled = Path(__file__).resolve().parents[1] / "src" / "rectveil" / "tessdata" / "eng.traineddata"
+    bundled = Path(__file__).resolve().parents[1] / "src" / "blurout_pdf" / "tessdata" / "eng.traineddata"
     if not bundled.is_file():
         pytest.skip("Project-local OCR language data is not installed")
     with pymupdf.open() as source:

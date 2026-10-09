@@ -75,7 +75,11 @@ class TabBarWithPlus(QTabBar):
 class MainWindow(QMainWindow):
     def __init__(self, initial_path: str | None = None) -> None:
         super().__init__()
-        self.settings = QSettings("Rectveil", "Rectveil")
+        self.settings = QSettings("BlurOut PDF", "BlurOut PDF")
+        previous_settings = QSettings("Rectveil", "Rectveil")
+        for key in ("language", "redaction_style", "appearance", "last_open_directory", "last_save_directory"):
+            if not self.settings.contains(key) and previous_settings.contains(key):
+                self.settings.setValue(key, previous_settings.value(key))
         saved_language = self.settings.value("language", "auto")
         self.language = default_language() if saved_language == "auto" else str(saved_language)
         self.style_name = str(self.settings.value("redaction_style", "black"))
@@ -526,7 +530,7 @@ class MainWindow(QMainWindow):
 
     def _update_title(self) -> None:
         if self._active_tab is None or self.document.path is None:
-            self.setWindowTitle("Rectveil")
+            self.setWindowTitle("BlurOut PDF")
             return
         name = self.document.path.name
         prefix = "*" if self.document.dirty else ""
@@ -534,7 +538,7 @@ class MainWindow(QMainWindow):
         if index >= 0:
             self.tabs.setTabText(index, f"{prefix}{name}")
             self.tabs.setTabToolTip(index, str(self.document.path))
-        self.setWindowTitle(f"{prefix}{name} — Rectveil")
+        self.setWindowTitle(f"{prefix}{name} — BlurOut PDF")
 
     def set_language(self, language: str) -> None:
         self.language = language

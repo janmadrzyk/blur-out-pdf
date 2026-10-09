@@ -22,11 +22,11 @@ jobs:
       - name: Build installer
         shell: pwsh
         run: |
-          python -m PyInstaller --noconfirm --clean --windowed --onedir --name Rectveil --paths src run.py
+          python -m PyInstaller --noconfirm --clean --windowed --onedir --name BlurOutPDF --paths src --icon packaging/app.ico --add-data "src/blurout_pdf/assets/app.png;blurout_pdf/assets" run.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "packaging\windows.iss"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         with:
-          name: Rectveil-Windows-installer
-          path: dist/Rectveil-Setup-*.exe
+          name: BlurOutPDF-Windows-installer
+          path: dist/BlurOutPDF-Setup-*.exe

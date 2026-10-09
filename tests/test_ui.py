@@ -8,7 +8,7 @@ from PySide6.QtCore import QPoint, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
-from rectveil.window import MainWindow
+from blurout_pdf.window import MainWindow
 
 
 def test_window_open_search_redact_save(tmp_path: Path) -> None:

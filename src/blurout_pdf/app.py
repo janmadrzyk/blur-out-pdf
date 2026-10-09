@@ -11,8 +11,8 @@ from .window import MainWindow
 
 def main() -> int:
     app = QApplication(sys.argv)
-    app.setApplicationName("Rectveil")
-    app.setOrganizationName("Rectveil")
+    app.setApplicationName("BlurOut PDF")
+    app.setOrganizationName("BlurOut PDF")
     app.setWindowIcon(QIcon(str(Path(__file__).resolve().parent / "assets" / "app.png")))
     window = MainWindow(sys.argv[1] if len(sys.argv) > 1 else None)
     window.show()

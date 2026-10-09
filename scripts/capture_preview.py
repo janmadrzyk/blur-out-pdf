@@ -5,7 +5,7 @@ from pathlib import Path
 import pymupdf
 from PySide6.QtWidgets import QApplication
 
-from rectveil.window import MainWindow
+from blurout_pdf.window import MainWindow
 
 
 def main() -> None:

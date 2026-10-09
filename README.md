@@ -1,8 +1,8 @@
-# Rectveil
+# BlurOut PDF
 
-Rectveil is a small, offline Windows PDF reader focused on drawing rectangular redactions and saving a shareable copy. The project name is provisional.
+BlurOut PDF is a small, offline Windows PDF reader focused on drawing rectangular redactions and saving a shareable copy.
 
-![Rectveil showing a pending redaction in dark mode](docs/assets/ui-preview.png)
+![BlurOut PDF showing a pending redaction in dark mode](docs/assets/ui-preview.png)
 
 ## Current features
 
@@ -43,11 +43,11 @@ Install [Inno Setup](https://jrsoftware.org/isinfo.php), then run:
 .\packaging\build.ps1
 ```
 
-This produces `dist\Rectveil-Setup-0.1.0.exe`. The installer registers Rectveil as an **Open with** option for `.pdf` files without taking over the default PDF viewer. The executable, installer and application window use the transparent icon derived from the supplied draft.
+This produces `dist\BlurOutPDF-Setup-0.1.0.exe`. The installer registers BlurOut PDF as an **Open with** option for `.pdf` files without taking over the default PDF viewer. The executable, installer and application window use the transparent icon derived from the supplied draft.
 
 ## Privacy and security scope
 
-Rectveil works locally and makes a fresh PDF when saving. The old source file is overwritten only if you choose **Save**; **Save as** creates another file. The exporter removes objects referenced solely by the redacted area and verifies that no extractable characters intersect each selected rectangle in the output.
+BlurOut PDF works locally and makes a fresh PDF when saving. The old source file is overwritten only if you choose **Save**; **Save as** creates another file. The exporter removes objects referenced solely by the redacted area and verifies that no extractable characters intersect each selected rectangle in the output.
 
 PDFs can contain duplicate sensitive data elsewhere, including visible text on another page. Complex interactive PDF features and malformed PDFs need further validation before relying on the result for high-stakes disclosure. Review the saved file, especially all pages and any repeated information, before sending it. The current exporter removes links, embedded files, metadata and form responses when saving redactions. See [technical specification](docs/SPEC.md) for boundaries and planned work.
 

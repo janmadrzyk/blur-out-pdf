@@ -1,10 +1,10 @@
-# Rectveil technical specification (draft, 0.1)
+# BlurOut PDF technical specification (draft, 0.1)
 
 ## Purpose and scope
 
 The application lets a Windows user read a PDF, draw rectangular redactions, and export a PDF in which page content within those rectangles is removed. The first usable slice is intentionally small: open, scroll, search, navigate, zoom, rotate, redact, undo the last pending redaction, save and change language/style. Printing, facing-page layouts, full edit history and a custom app icon are later slices.
 
-The product name is provisional. Candidates for the final name: **Rectveil** (current), **QuietRect**, **ShadePage**, **Blackleaf**. A web search found an existing PDF project named VeilPDF and existing products named RedactDesk, CloakPDF and PageVeil, so those names were avoided. A formal trademark check has not been done.
+The product name is **BlurOut PDF**. The Windows executable is `BlurOutPDF.exe`, and the Python package is `blurout_pdf`.
 
 ## User flow
 
@@ -31,7 +31,7 @@ The product name is provisional. Candidates for the final name: **Rectveil** (cu
 
 Use native Qt widgets with a restrained Windows-style palette: light surfaces `#ffffff/#f3f5f8`, dark surfaces `#171b22/#222832`, blue `#2d77bf` for active controls, and a single 24 px stroke-icon family. All controls have text or tooltips. The top menu has File and Settings; the search field sits at the right, following the supplied screenshot's field, arrows and option menu. The editing toolbar can be hidden. The bottom bar centers page navigation and places page mode and zoom on the right. The two requested page-mode icons currently mean single and continuous; facing modes are deferred until their behavior is implemented.
 
-The operating-system color scheme is read when the window opens and updated when Windows reports a theme change. The final program icon is pending user artwork.
+The operating-system color scheme is read when the window opens and updated when Windows reports a theme change. The application and installer use the transparent program icon based on the supplied draft.
 
 ## Packaging and licensing
 

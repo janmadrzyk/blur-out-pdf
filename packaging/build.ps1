@@ -8,7 +8,7 @@ if (-not (Test-Path ".venv\Scripts\python.exe")) {
     throw "Create .venv and install the dev dependencies first (see README.md)."
 }
 
-& ".venv\Scripts\python.exe" -m PyInstaller --noconfirm --windowed --onedir --name Rectveil --paths src --icon "packaging\app.ico" --add-data "src\rectveil\assets\app.png;rectveil\assets" run.py
+& ".venv\Scripts\python.exe" -m PyInstaller --noconfirm --windowed --onedir --name BlurOutPDF --paths src --icon "packaging\app.ico" --add-data "src\blurout_pdf\assets\app.png;blurout_pdf\assets" run.py
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed." }
 
 if (-not $InnoCompiler) {
@@ -25,7 +25,7 @@ if (-not $InnoCompiler) {
     }
 }
 if (-not $InnoCompiler) {
-    throw "Rectveil was packaged in dist\Rectveil. Install Inno Setup and rerun with -InnoCompiler <path-to-ISCC.exe> to create the installer."
+    throw "BlurOut PDF was packaged in dist\BlurOutPDF. Install Inno Setup and rerun with -InnoCompiler <path-to-ISCC.exe> to create the installer."
 }
 & $InnoCompiler "packaging\windows.iss"
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed." }
