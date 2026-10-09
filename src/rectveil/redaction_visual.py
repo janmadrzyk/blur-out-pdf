@@ -11,6 +11,7 @@ from PySide6.QtGui import QImage, QPainter
 
 
 SNAPSHOT_SCALE = 3.0  # 216 dpi: detailed enough for printed blur regions.
+COARSE_PIXEL_SCALE = 2.5
 
 
 def render_blur_png(
@@ -87,7 +88,7 @@ def blur_image(source: QImage, style: str, seed: str) -> QImage:
     if style not in ("fine", "coarse"):
         raise ValueError(f"Unsupported blur style: {style}")
 
-    points_per_cell = 10 if style == "fine" else 18
+    points_per_cell = 10 if style == "fine" else 18 * COARSE_PIXEL_SCALE
     cell_pixels = points_per_cell * SNAPSHOT_SCALE
     small = source.scaled(
         max(1, round(source.width() / cell_pixels)),
@@ -102,7 +103,7 @@ def blur_image(source: QImage, style: str, seed: str) -> QImage:
 
     # Add a fine or coarse deterministic texture to make the two blur styles
     # visibly distinct while obscuring the rendered source.
-    grain_step = 2 if style == "fine" else 7
+    grain_step = 2 if style == "fine" else round(7 * COARSE_PIXEL_SCALE)
     grain_width = max(1, (source.width() + grain_step - 1) // grain_step)
     grain_height = max(1, (source.height() + grain_step - 1) // grain_step)
     rng = random.Random(seed)

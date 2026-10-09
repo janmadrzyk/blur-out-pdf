@@ -42,12 +42,16 @@ def redaction_style_icon(style: str, dark: bool) -> QIcon:
         # Use the PDF snapshot scale so the word has realistic text dimensions.
         # Oversampling the source enlarges the letters relative to the blur cells
         # and makes the icon readable, unlike a redaction of normal-sized text.
-        source = QImage(round(ICON_WIDTH * SNAPSHOT_SCALE),
-                        round(ICON_HEIGHT * SNAPSHOT_SCALE), QImage.Format.Format_RGB32)
+        # The coarse sample represents a larger paper region, so its larger
+        # cells remain visible after the preview is reduced to toolbar size.
+        preview_scale = 2 if style == "coarse" else 1
+        source = QImage(round(ICON_WIDTH * SNAPSHOT_SCALE * preview_scale),
+                        round(ICON_HEIGHT * SNAPSHOT_SCALE * preview_scale),
+                        QImage.Format.Format_RGB32)
         source.fill(QColor("#222832" if dark else "#ffffff"))
         sample = QPainter(source)
         ink = QColor("#edf1f7" if dark else "#1d2633")
-        unit = 5
+        unit = 5 * preview_scale
         left = (source.width() - 23 * unit) // 2
         top = (source.height() - 7 * unit) // 2
         for letter_index, rows in enumerate(LETTER_BITMAPS):
