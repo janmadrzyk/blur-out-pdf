@@ -1,9 +1,9 @@
 """Windows-aware palettes and one consistent outline icon family."""
 
 from PySide6.QtCore import QByteArray, Qt
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtGui import QColor, QIcon, QPalette, QPixmap
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QFileDialog, QToolButton
 
 
 PATHS = {
@@ -23,6 +23,10 @@ PATHS = {
     "continuous": '<rect x="6" y="2" width="12" height="9" rx="1"/><rect x="6" y="13" width="12" height="9" rx="1"/>',
     "options": '<circle cx="12" cy="5" r="1.8" fill="{color}" stroke="none"/><circle cx="12" cy="12" r="1.8" fill="{color}" stroke="none"/><circle cx="12" cy="19" r="1.8" fill="{color}" stroke="none"/>',
     "close": '<path d="M6 6l12 12M18 6 6 18"/>',
+    "up": '<path d="m5 14 7-7 7 7M12 7v14"/>',
+    "new_folder": '<path d="M3 7h6l2 2h10v11H3z"/><path d="M13 15h6M16 12v6"/>',
+    "list": '<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h1M3 12h1M3 18h1"/>',
+    "details": '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 9h18M9 9v11"/>',
 }
 
 
@@ -39,19 +43,51 @@ def icon(name: str, color: str = "#293241") -> QIcon:
     return QIcon(pixmap)
 
 
+def theme_file_dialog(dialog: QFileDialog, dark: bool) -> None:
+    """Use readable navigation icons in Qt's themed file chooser."""
+    color = "#edf1f7" if dark else "#1d2633"
+    for object_name, icon_name in (
+        ("backButton", "prev"), ("forwardButton", "next"),
+        ("toParentButton", "up"), ("newFolderButton", "new_folder"),
+        ("listModeButton", "list"), ("detailModeButton", "details"),
+    ):
+        button = dialog.findChild(QToolButton, object_name)
+        if button is not None:
+            button.setIcon(icon(icon_name, color))
+
+
 def apply_theme(app: QApplication, dark: bool) -> None:
     background = "#171b22" if dark else "#f3f5f8"
     surface = "#222832" if dark else "#ffffff"
     text = "#edf1f7" if dark else "#1d2633"
     border = "#414a59" if dark else "#cbd3de"
     hover = "#303d4b" if dark else "#e8eef5"
+    palette = app.palette()
+    for role, color in (
+        (QPalette.ColorRole.Window, background),
+        (QPalette.ColorRole.WindowText, text),
+        (QPalette.ColorRole.Base, surface),
+        (QPalette.ColorRole.AlternateBase, hover),
+        (QPalette.ColorRole.Text, text),
+        (QPalette.ColorRole.Button, surface),
+        (QPalette.ColorRole.ButtonText, text),
+        (QPalette.ColorRole.ToolTipBase, surface),
+        (QPalette.ColorRole.ToolTipText, text),
+        (QPalette.ColorRole.Highlight, "#2d77bf"),
+        (QPalette.ColorRole.HighlightedText, "#ffffff"),
+    ):
+        palette.setColor(role, QColor(color))
+    app.setPalette(palette)
     app.setStyleSheet(f"""
         QMainWindow, QScrollArea, QStatusBar {{ background: {background}; color: {text}; }}
+        QDialog {{ background: {background}; color: {text}; }}
+        QDialog QPushButton {{ background: {surface}; color: {text}; border: 1px solid {border}; border-radius: 2px; padding: 5px 10px; }}
+        QDialog QPushButton:hover {{ background: {hover}; }}
+        QDialog QAbstractItemView {{ background: {surface}; color: {text}; selection-background-color: #2d77bf; selection-color: #ffffff; }}
+        QDialog QHeaderView::section {{ background: {hover}; color: {text}; border: 1px solid {border}; padding: 4px; }}
         QDialog#metadataDialog, QScrollArea#metadataScroll, QWidget#metadataContent {{ background: {background}; color: {text}; }}
         QDialog#metadataDialog QGroupBox {{ background: {surface}; color: {text}; border: 1px solid {border}; border-radius: 4px; margin-top: 16px; padding: 10px 8px 8px; }}
         QDialog#metadataDialog QGroupBox::title {{ subcontrol-origin: margin; left: 8px; padding: 0 4px; background: {surface}; color: {text}; }}
-        QDialog#metadataDialog QPushButton {{ background: {surface}; color: {text}; border: 1px solid {border}; border-radius: 2px; padding: 5px 10px; }}
-        QDialog#metadataDialog QPushButton:hover {{ background: {hover}; }}
         QWidget {{ color: {text}; font-family: 'Segoe UI'; font-size: 10pt; }}
         QMenuBar, QMenu, QToolBar, QFrame#bottomBar {{ background: {surface}; color: {text}; }}
         QTabWidget {{ background: {background}; }}

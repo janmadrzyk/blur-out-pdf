@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QTabBar, QTabWidget, QToolBar, QToolButton, QVBoxLayout, QWidget,
 )
 
-from .appearance import apply_theme, icon, resolve_dark
+from .appearance import apply_theme, icon, resolve_dark, theme_file_dialog
 from .document import PdfDocument, STYLES
 from .i18n import default_language, translate
 from .metadata_dialog import MetadataEditorDialog
@@ -717,10 +717,13 @@ class MainWindow(QMainWindow):
 
     def open_dialog(self) -> None:
         initial_directory = self._initial_directory("last_open_directory")
-        paths, _ = QFileDialog.getOpenFileNames(
-            self, self.t("open_pdf"), initial_directory, self.t("pdf_filter"),
-        )
-        for path in paths:
+        dialog = QFileDialog(self, self.t("open_pdf"), initial_directory, self.t("pdf_filter"))
+        dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        dialog.setFileMode(QFileDialog.FileMode.ExistingFiles)
+        theme_file_dialog(dialog, self.dark)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        for path in dialog.selectedFiles():
             self.open_path(path)
 
     def open_path(self, path: str) -> None:
@@ -770,9 +773,17 @@ class MainWindow(QMainWindow):
             return False
         initial_directory = self._initial_directory("last_save_directory", self.document.path.parent)
         suggested = str(Path(initial_directory) / f"{self.document.path.stem}-redacted.pdf")
-        path, _ = QFileDialog.getSaveFileName(self, self.t("save_pdf"), suggested, self.t("pdf_filter"))
-        if not path:
+        dialog = QFileDialog(self, self.t("save_pdf"), suggested, self.t("pdf_filter"))
+        dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+        dialog.setDefaultSuffix("pdf")
+        theme_file_dialog(dialog, self.dark)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
             return False
+        selected = dialog.selectedFiles()
+        if not selected:
+            return False
+        path = selected[0]
         if not path.lower().endswith(".pdf"):
             path += ".pdf"
         return self._save_to(path)

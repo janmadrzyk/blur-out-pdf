@@ -7,9 +7,13 @@ import pymupdf
 import pytest
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtCore import QSettings
+from PySide6.QtGui import QPalette
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QInputDialog, QMessageBox
 
+from blurout_pdf.appearance import apply_theme
+from blurout_pdf.i18n import translate
+from blurout_pdf.metadata_dialog import MetadataEditorDialog
 from blurout_pdf.window import MainWindow
 from blurout_pdf import search, window as window_module
 
@@ -19,6 +23,51 @@ def project_local_ocr(monkeypatch) -> None:
     """UI tests must not inspect OCR data outside the project."""
     monkeypatch.setattr(search, "_tessdata_directory", lambda: None)
     monkeypatch.setattr(window_module, "_tessdata_directory", lambda: None)
+
+
+def test_all_dialogs_use_readable_light_and_dark_palettes() -> None:
+    app = QApplication.instance() or QApplication([])
+    for dark, background, foreground in (
+        (False, "#f3f5f8", "#1d2633"),
+        (True, "#171b22", "#edf1f7"),
+    ):
+        apply_theme(app, dark)
+        dialogs = [
+            QMessageBox(), QInputDialog(), QFileDialog(),
+            MetadataEditorDialog(None, lambda key, **values: translate("en", key, **values), {}, {}, ""),
+        ]
+        for dialog in dialogs:
+            palette = dialog.palette()
+            assert palette.color(QPalette.ColorRole.Window).name() == background
+            assert palette.color(QPalette.ColorRole.WindowText).name() == foreground
+            dialog.close()
+
+
+def test_themed_file_dialogs_keep_open_and_save_flows(tmp_path: Path, monkeypatch) -> None:
+    app = QApplication.instance() or QApplication([])
+    settings_file = tmp_path / "settings.ini"
+    monkeypatch.setattr(window_module, "QSettings", lambda *_args: QSettings(
+        str(settings_file), QSettings.Format.IniFormat,
+    ))
+    source = tmp_path / "source.pdf"
+    result = tmp_path / "result.pdf"
+    with pymupdf.open() as pdf:
+        pdf.new_page().insert_text((50, 80), "PUBLIC", fontsize=18)
+        pdf.save(source)
+    window = MainWindow()
+    window.settings.setValue("last_open_directory", str(tmp_path))
+    window.settings.setValue("last_save_directory", str(tmp_path))
+    selected = [str(source)]
+    monkeypatch.setattr(QFileDialog, "exec", lambda self: QDialog.DialogCode.Accepted)
+    monkeypatch.setattr(QFileDialog, "selectedFiles", lambda self: selected)
+
+    window.open_dialog()
+    assert window.document.path == source
+    selected[:] = [str(result)]
+    assert window.save_as()
+    assert result.is_file()
+    window.close()
+    app.quit()
 
 
 def test_ocr_language_setting_warns_and_invalidates_search_cache(tmp_path: Path, monkeypatch) -> None:
