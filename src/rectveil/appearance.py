@@ -47,6 +47,11 @@ def apply_theme(app: QApplication, dark: bool) -> None:
     hover = "#303d4b" if dark else "#e8eef5"
     app.setStyleSheet(f"""
         QMainWindow, QScrollArea, QStatusBar {{ background: {background}; color: {text}; }}
+        QDialog#metadataDialog, QScrollArea#metadataScroll, QWidget#metadataContent {{ background: {background}; color: {text}; }}
+        QDialog#metadataDialog QGroupBox {{ background: {surface}; color: {text}; border: 1px solid {border}; border-radius: 4px; margin-top: 16px; padding: 10px 8px 8px; }}
+        QDialog#metadataDialog QGroupBox::title {{ subcontrol-origin: margin; left: 8px; padding: 0 4px; background: {surface}; color: {text}; }}
+        QDialog#metadataDialog QPushButton {{ background: {surface}; color: {text}; border: 1px solid {border}; border-radius: 2px; padding: 5px 10px; }}
+        QDialog#metadataDialog QPushButton:hover {{ background: {hover}; }}
         QWidget {{ color: {text}; font-family: 'Segoe UI'; font-size: 10pt; }}
         QMenuBar, QMenu, QToolBar, QFrame#bottomBar {{ background: {surface}; color: {text}; }}
         QTabWidget {{ background: {background}; }}

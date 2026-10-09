@@ -29,6 +29,7 @@ class MetadataEditorDialog(QDialog):
         xmp_xml: str,
     ) -> None:
         super().__init__(parent)
+        self.setObjectName("metadataDialog")
         self.t = translate
         self.setWindowTitle(self.t("edit_metadata"))
         self.resize(760, 720)
@@ -43,7 +44,9 @@ class MetadataEditorDialog(QDialog):
         self.xmp_error = ""
 
         root = QVBoxLayout(self)
-        root.addWidget(QLabel(self.t("metadata_help")))
+        help_label = QLabel(self.t("metadata_help"))
+        help_label.setWordWrap(True)
+        root.addWidget(help_label)
 
         search_row = QHBoxLayout()
         self.find_field = QLineEdit()
@@ -91,9 +94,11 @@ class MetadataEditorDialog(QDialog):
         root.addWidget(self.match_status)
 
         scroll = QScrollArea()
+        scroll.setObjectName("metadataScroll")
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         content = QWidget()
+        content.setObjectName("metadataContent")
         content_layout = QVBoxLayout(content)
 
         standard_box = QGroupBox(self.t("standard_metadata"))
