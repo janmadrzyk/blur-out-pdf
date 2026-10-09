@@ -3,6 +3,10 @@
 __pycache__/
 .pytest_cache/
 .pytest-temp/
+.pytest-temp*/
+.pytest-tmp*/
+/tmp/
+/AGENTS.md
 *.py[cod]
 *.egg-info/
 build/
