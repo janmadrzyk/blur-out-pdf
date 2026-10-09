@@ -20,7 +20,7 @@ from .document import PdfDocument, STYLES
 from .i18n import default_language, translate
 from .metadata_dialog import MetadataEditorDialog
 from .redaction_style_icon import redaction_style_icon
-from .search import find_matches
+from .search import OCR_LANGUAGES, _tessdata_directory, find_matches, ocr_language_status, system_ocr_language
 from .viewer import PdfViewer
 
 
@@ -82,6 +82,9 @@ class MainWindow(QMainWindow):
                 self.settings.setValue(key, previous_settings.value(key))
         saved_language = self.settings.value("language", "auto")
         self.language = default_language() if saved_language == "auto" else str(saved_language)
+        self.ocr_language = str(self.settings.value("ocr_language", "auto"))
+        if self.ocr_language not in ("auto", *OCR_LANGUAGES):
+            self.ocr_language = "auto"
         self.style_name = str(self.settings.value("redaction_style", "black"))
         if self.style_name not in STYLES:
             self.style_name = "black"
@@ -268,6 +271,18 @@ class MainWindow(QMainWindow):
             style_group.addAction(action)
             action.triggered.connect(lambda checked=False, value=name: self.set_style(value))
             self.style_actions[name] = action
+
+        self.ocr_menu = self.settings_menu.addMenu("")
+        self.ocr_menu.aboutToShow.connect(self._refresh_ocr_menu)
+        ocr_group = QActionGroup(self)
+        ocr_group.setExclusive(True)
+        self.ocr_actions = {}
+        for name in ("auto", *OCR_LANGUAGES):
+            action = self.ocr_menu.addAction("")
+            action.setCheckable(True)
+            ocr_group.addAction(action)
+            action.triggered.connect(lambda checked=False, value=name: self.set_ocr_language(value))
+            self.ocr_actions[name] = action
         self.settings_menu.addSeparator()
         self.toolbar_action = self.settings_menu.addAction("")
         self.toolbar_action.setCheckable(True)
@@ -433,6 +448,10 @@ class MainWindow(QMainWindow):
         row.addWidget(self.zoom_controls)
         self.main_layout.addWidget(self.bottom)
 
+        self.ocr_notice = QLabel(self)
+        self.statusBar().addPermanentWidget(self.ocr_notice)
+        self._refresh_ocr_status()
+
     def _button(self, icon_name: str, callback=None) -> QToolButton:
         button = QToolButton(self)
         button.setIcon(icon(icon_name))
@@ -480,7 +499,7 @@ class MainWindow(QMainWindow):
                             (self.settings_menu, "settings"),
                             (self.language_menu, "language"), (self.pl_action, "polish"),
                             (self.en_action, "english"), (self.appearance_menu, "appearance"),
-                            (self.style_menu, "style"),
+                            (self.style_menu, "style"), (self.ocr_menu, "ocr_language"),
                             (self.toolbar_action, "show_toolbar"), (self.case_action, "case"),
                             (self.whole_action, "whole"), (self.diacritics_action, "diacritics"),
                             (self.redact_action, "redact"), (self.undo_action, "undo_redaction"), (self.left_action, "rotate_left"),
@@ -495,6 +514,8 @@ class MainWindow(QMainWindow):
         for name, action in self.appearance_actions.items():
             action.setText(self.t(f"appearance_{name}"))
             action.setChecked(self.appearance_name == name)
+        self._refresh_ocr_menu()
+        self._refresh_ocr_status()
         self.redact_label.setText(self.t("redact"))
         self.redact_button.setAccessibleName(self.t("redact"))
         self.redact_button.setToolTip(self.t("redact"))
@@ -544,6 +565,44 @@ class MainWindow(QMainWindow):
         self.language = language
         self.settings.setValue("language", language)
         self._translate_ui()
+
+    def _refresh_ocr_menu(self) -> None:
+        tessdata = _tessdata_directory()
+        system_name = OCR_LANGUAGES[system_ocr_language()]
+        for name, action in self.ocr_actions.items():
+            if name == "auto":
+                action.setText(self.t("ocr_auto", model=system_name))
+                action.setEnabled(True)
+            else:
+                available = tessdata is not None and (tessdata / f"{name}.traineddata").is_file()
+                action.setText(OCR_LANGUAGES[name])
+                action.setEnabled(available)
+                action.setVisible(available or name == self.ocr_language)
+            action.setChecked(name == self.ocr_language)
+
+    def _refresh_ocr_status(self) -> None:
+        _active, missing = ocr_language_status(self.ocr_language)
+        if missing == "eng":
+            message = self.t("ocr_unavailable")
+        elif missing:
+            message = self.t("ocr_fallback", model=OCR_LANGUAGES[missing])
+        else:
+            message = ""
+        self.ocr_notice.setText(message)
+        self.ocr_notice.setToolTip(message)
+        self.ocr_notice.setVisible(bool(message))
+
+    def set_ocr_language(self, language: str) -> None:
+        if language not in ("auto", *OCR_LANGUAGES):
+            raise ValueError(language)
+        self.ocr_language = language
+        self.settings.setValue("ocr_language", language)
+        for context in self._document_tabs.values():
+            context.search_pages.clear()
+        self._refresh_ocr_menu()
+        self._refresh_ocr_status()
+        if self.document.is_open:
+            self._update_search(navigate=False)
 
     def set_appearance(self, appearance: str) -> None:
         if appearance not in ("system", "light", "dark"):
@@ -843,7 +902,8 @@ class MainWindow(QMainWindow):
         self.matches = find_matches(self.document.pdf, self.search_field.text(),
                                     self.case_action.isChecked(), self.whole_action.isChecked(),
                                     self.diacritics_action.isChecked(), hidden_areas,
-                                    self._active_tab.search_pages if self._active_tab else None)
+                                    self._active_tab.search_pages if self._active_tab else None,
+                                    self.ocr_language)
         self.viewer.matches = self.matches
         if self._active_tab:
             self._active_tab.matches = self.matches

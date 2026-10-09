@@ -12,7 +12,10 @@ BlurOut PDF is a small, offline Windows PDF reader focused on drawing rectangula
 - Save or Save as a fully rewritten PDF. Text intersecting the area is removed with PyMuPDF redactions; overlapping image pixels and vector content are removed. On a redaction save, the exporter also strips common hidden data, including metadata, embedded files, JavaScript, links and form responses.
 - Choose black, fine-grain or coarse-grain covering. Grain is generated independently of the original content; it is not a blur of private pixels.
 - Rotate pages, search text, navigate pages, and control zoom from the percentage box and slider.
+- Search scanned pages with OCR when Tesseract language data is available. **Settings > OCR language** defaults to the Windows UI language plus English; it lists available models for manual selection and shows a warning when the chosen model is missing. Text already embedded in a PDF remains searchable without OCR.
 - Polish on Polish systems; English elsewhere. Language can be changed in Settings. The UI follows the operating system's light/dark theme, including changes while the app is open.
+
+OCR language models are not included in the installer yet. The app looks for `eng.traineddata` next to its code, in `TESSDATA_PREFIX`, or in supported Windows Tesseract data locations. Other languages need their matching `.traineddata` files in the same directory. The app does not download models automatically.
 
 ## Run from source
 

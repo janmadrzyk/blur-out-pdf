@@ -126,8 +126,50 @@ def test_ocr_matches_accented_query_when_recognition_drops_accent(monkeypatch) -
     chars = [{"c": char, "bbox": (index * 10, 0, index * 10 + 8, 12)}
              for index, char in enumerate("maka")]
     block = {"lines": [{"spans": [{"chars": chars}]}]}
-    monkeypatch.setattr(search, "_page_blocks", lambda _page, _flags: [block])
+    monkeypatch.setattr(search, "_page_blocks", lambda _page, _flags, _language="auto": [block])
     assert find_matches(document, "mąka") == []
     block["_ocr"] = True
     assert len(find_matches(document, "mąka")) == 1
     assert len(find_matches(document, "maka")) == 1
+
+
+def test_ocr_language_uses_windows_ui_language_and_available_models(tmp_path, monkeypatch) -> None:
+    assert search.system_ocr_language("ru-RU") == "rus"
+    assert search.system_ocr_language("zh-Hant-TW") == "chi_tra"
+    assert search.system_ocr_language("zh-Hans-CN") == "chi_sim"
+    tessdata = tmp_path / "tessdata"
+    tessdata.mkdir()
+    for language in ("eng", "rus", "pol"):
+        (tessdata / f"{language}.traineddata").touch()
+    monkeypatch.setattr(search, "_tessdata_directory", lambda: tessdata)
+    monkeypatch.setattr(search, "system_ocr_language", lambda: "rus")
+
+    assert search.ocr_language_status() == ("rus+eng", None)
+    assert search.ocr_language_status("pol") == ("pol+eng", None)
+    assert search.ocr_language_status("ara") == ("eng", "ara")
+
+
+def test_ocr_passes_selected_languages_to_pymupdf(tmp_path, monkeypatch) -> None:
+    tessdata = tmp_path / "tessdata"
+    tessdata.mkdir()
+    for language in ("eng", "ara"):
+        (tessdata / f"{language}.traineddata").touch()
+    monkeypatch.setattr(search, "_tessdata_directory", lambda: tessdata)
+
+    class Page:
+        def __init__(self):
+            self.language = ""
+
+        def get_text(self, _format, **kwargs):
+            if "textpage" in kwargs:
+                return {"blocks": [{"lines": []}]}
+            return {"blocks": []}
+
+        def get_textpage_ocr(self, **kwargs):
+            self.language = kwargs["language"]
+            return object()
+
+    page = Page()
+    blocks = search._page_blocks(page, 0, "ara")
+    assert page.language == "ara+eng"
+    assert blocks[0]["_ocr"] is True

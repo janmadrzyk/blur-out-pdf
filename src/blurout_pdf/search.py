@@ -9,6 +9,45 @@ from collections.abc import Iterator, Mapping, MutableMapping, Sequence
 from contextlib import contextmanager
 
 import pymupdf
+from PySide6.QtCore import QLocale
+
+
+OCR_LANGUAGES = {
+    "eng": "English", "pol": "Polski", "rus": "Русский", "ukr": "Українська",
+    "ara": "العربية", "hin": "हिन्दी", "ben": "বাংলা", "chi_sim": "简体中文",
+    "chi_tra": "繁體中文", "jpn": "日本語", "kor": "한국어", "spa": "Español",
+    "fra": "Français", "deu": "Deutsch", "por": "Português", "ita": "Italiano",
+}
+_LOCALE_MODELS = {
+    "pl": "pol", "ru": "rus", "uk": "ukr", "ar": "ara", "hi": "hin",
+    "bn": "ben", "ja": "jpn", "ko": "kor", "es": "spa", "fr": "fra",
+    "de": "deu", "pt": "por", "it": "ita",
+}
+
+
+def system_ocr_language(locale_name: str | None = None) -> str:
+    """Map the Windows UI locale to a Tesseract model."""
+    preferred = QLocale.system().uiLanguages()
+    locale = (locale_name or (preferred[0] if preferred else QLocale.system().name()))
+    parts = locale.replace("-", "_").lower().split("_")
+    if parts[0] == "zh":
+        return "chi_tra" if any(part in {"hant", "tw", "hk", "mo"} for part in parts[1:]) else "chi_sim"
+    return _LOCALE_MODELS.get(parts[0], "eng")
+
+
+def ocr_language_status(preference: str = "auto") -> tuple[str | None, str | None]:
+    """Return active OCR languages and a missing model, if any."""
+    tessdata = _tessdata_directory()
+    if tessdata is None:
+        return None, "eng"
+    selected = system_ocr_language() if preference == "auto" else preference
+    if selected not in OCR_LANGUAGES:
+        selected = "eng"
+    if selected == "eng":
+        return "eng", None
+    if not (tessdata / f"{selected}.traineddata").is_file():
+        return "eng", selected
+    return f"{selected}+eng", None
 
 
 @contextmanager
@@ -40,16 +79,17 @@ def find_matches(
     ignore_diacritics: bool = False,
     hidden_areas: Mapping[int, Sequence[pymupdf.Rect]] | None = None,
     page_cache: MutableMapping[int, list[dict]] | None = None,
+    ocr_language: str = "auto",
 ) -> list[tuple[int, pymupdf.Rect]]:
     needle = normalized(" ".join(query.split()), match_case, ignore_diacritics)
     if not needle:
         return []
     if page_cache is not None and len(page_cache) == len(document):
         return _find_page_matches(document, needle, match_case, whole_words,
-                                  ignore_diacritics, hidden_areas, page_cache)
+                                  ignore_diacritics, hidden_areas, page_cache, ocr_language)
     with _search_document(document) as searchable:
         return _find_page_matches(searchable, needle, match_case, whole_words,
-                                  ignore_diacritics, hidden_areas, page_cache)
+                                  ignore_diacritics, hidden_areas, page_cache, ocr_language)
 
 
 def _tessdata_directory() -> Path | None:
@@ -74,17 +114,16 @@ def _needs_ocr(blocks: list[dict]) -> bool:
     return damaged / len(chars) > 0.1
 
 
-def _page_blocks(page: pymupdf.Page, flags: int) -> list[dict]:
+def _page_blocks(page: pymupdf.Page, flags: int, ocr_language: str = "auto") -> list[dict]:
     blocks = page.get_text("rawdict", sort=True, flags=flags)["blocks"]
     if not _needs_ocr(blocks):
         return blocks
-    tessdata = _tessdata_directory()
-    if tessdata is None:
+    language, _missing = ocr_language_status(ocr_language)
+    if language is None:
         return blocks
-    language = "eng+pol" if (tessdata / "pol.traineddata").is_file() else "eng"
     try:
         textpage = page.get_textpage_ocr(language=language, dpi=150, full=True,
-                                         tessdata=str(tessdata))
+                                         tessdata=str(_tessdata_directory()))
     except RuntimeError:
         return blocks
     ocr_blocks = page.get_text("rawdict", sort=True, textpage=textpage)["blocks"]
@@ -101,6 +140,7 @@ def _find_page_matches(
     ignore_diacritics: bool,
     hidden_areas: Mapping[int, Sequence[pymupdf.Rect]] | None,
     page_cache: MutableMapping[int, list[dict]] | None,
+    ocr_language: str,
 ) -> list[tuple[int, pymupdf.Rect]]:
     results: list[tuple[int, pymupdf.Rect]] = []
     # PDF clipping controls visibility, not whether the embedded text exists.
@@ -111,7 +151,7 @@ def _find_page_matches(
         areas = hidden_areas.get(page_index, ()) if hidden_areas else ()
         blocks = page_cache.get(page_index) if page_cache is not None else None
         if blocks is None:
-            blocks = _page_blocks(page, flags)
+            blocks = _page_blocks(page, flags, ocr_language)
             if page_cache is not None:
                 page_cache[page_index] = blocks
         for block in blocks:

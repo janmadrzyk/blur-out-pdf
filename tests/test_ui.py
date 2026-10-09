@@ -4,11 +4,56 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pymupdf
+import pytest
 from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QSettings
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from blurout_pdf.window import MainWindow
+from blurout_pdf import search, window as window_module
+
+
+@pytest.fixture(autouse=True)
+def project_local_ocr(monkeypatch) -> None:
+    """UI tests must not inspect OCR data outside the project."""
+    monkeypatch.setattr(search, "_tessdata_directory", lambda: None)
+    monkeypatch.setattr(window_module, "_tessdata_directory", lambda: None)
+
+
+def test_ocr_language_setting_warns_and_invalidates_search_cache(tmp_path: Path, monkeypatch) -> None:
+    app = QApplication.instance() or QApplication([])
+    settings_file = tmp_path / "settings.ini"
+    monkeypatch.setattr(window_module, "QSettings", lambda *_args: QSettings(
+        str(settings_file), QSettings.Format.IniFormat,
+    ))
+    tessdata = tmp_path / "tessdata"
+    tessdata.mkdir()
+    (tessdata / "eng.traineddata").touch()
+    monkeypatch.setattr(search, "_tessdata_directory", lambda: tessdata)
+    monkeypatch.setattr(window_module, "_tessdata_directory", lambda: tessdata)
+
+    source = tmp_path / "source.pdf"
+    with pymupdf.open() as pdf:
+        pdf.new_page().insert_text((50, 80), "PUBLIC", fontsize=18)
+        pdf.save(source)
+    window = MainWindow()
+    window.open_path(str(source))
+    window._active_tab.search_pages[0] = [{"cached": True}]
+    window.set_ocr_language("rus")
+
+    assert window.settings.value("ocr_language") == "rus"
+    assert window._active_tab.search_pages == {}
+    assert "Русский" in window.ocr_notice.text()
+    assert window.ocr_actions["rus"].isChecked()
+
+    (tessdata / "rus.traineddata").touch()
+    window._refresh_ocr_menu()
+    window._refresh_ocr_status()
+    assert window.ocr_actions["rus"].isEnabled()
+    assert window.ocr_notice.text() == ""
+    window.close()
+    app.quit()
 
 
 def test_window_open_search_redact_save(tmp_path: Path) -> None:
