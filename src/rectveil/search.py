@@ -87,7 +87,10 @@ def _page_blocks(page: pymupdf.Page, flags: int) -> list[dict]:
                                          tessdata=str(tessdata))
     except RuntimeError:
         return blocks
-    return page.get_text("rawdict", sort=True, textpage=textpage)["blocks"]
+    ocr_blocks = page.get_text("rawdict", sort=True, textpage=textpage)["blocks"]
+    for block in ocr_blocks:
+        block["_ocr"] = True
+    return ocr_blocks
 
 
 def _find_page_matches(
@@ -103,6 +106,7 @@ def _find_page_matches(
     # PDF clipping controls visibility, not whether the embedded text exists.
     # Include clipped text (including nested Form XObjects) for privacy checks.
     flags = pymupdf.TEXTFLAGS_RAWDICT & ~pymupdf.TEXT_CLIP & ~pymupdf.TEXT_PRESERVE_IMAGES
+    accent_free_needle = normalized(needle, match_case=True, ignore_diacritics=True)
     for page_index, page in enumerate(document):
         areas = hidden_areas.get(page_index, ()) if hidden_areas else ()
         blocks = page_cache.get(page_index) if page_cache is not None else None
@@ -111,6 +115,10 @@ def _find_page_matches(
             if page_cache is not None:
                 page_cache[page_index] = blocks
         for block in blocks:
+            # OCR can omit an accent even when the printed glyph has one.
+            # Match both query and OCR text without accents in that case only.
+            effective_ignore_diacritics = ignore_diacritics or block.get("_ocr", False)
+            block_needle = accent_free_needle if effective_ignore_diacritics else needle
             for line in block.get("lines", []):
                 # Keep one rectangle per normalized character. A redacted
                 # character is a barrier, so a query cannot bridge over it.
@@ -123,14 +131,14 @@ def _find_page_matches(
                             characters.append("\0")
                             boxes.append(None)
                             continue
-                        value = normalized(char["c"], match_case, ignore_diacritics)
+                        value = normalized(char["c"], match_case, effective_ignore_diacritics)
                         for part in value:
                             characters.append(" " if part.isspace() else part)
                             boxes.append(box)
                 haystack = "".join(characters)
                 offset = 0
-                while (start := haystack.find(needle, offset)) >= 0:
-                    end = start + len(needle)
+                while (start := haystack.find(block_needle, offset)) >= 0:
+                    end = start + len(block_needle)
                     left_ok = start == 0 or not haystack[start - 1].isalnum()
                     right_ok = end == len(haystack) or not haystack[end].isalnum()
                     if not whole_words or (left_ok and right_ok):

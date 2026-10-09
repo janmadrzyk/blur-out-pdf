@@ -1,6 +1,9 @@
 import pymupdf
+import pytest
+from pathlib import Path
 
-from rectveil.search import _needs_ocr, _tessdata_directory, find_matches, normalized
+import rectveil.search as search
+from rectveil.search import _needs_ocr, find_matches, normalized
 
 
 def test_polish_diacritic_normalization() -> None:
@@ -91,9 +94,9 @@ def test_search_finds_hidden_optional_layer_without_changing_visibility() -> Non
 
 
 def test_search_uses_ocr_when_page_has_no_extractable_text() -> None:
-    if _tessdata_directory() is None:
-        import pytest
-        pytest.skip("OCR language data is not installed")
+    bundled = Path(__file__).resolve().parents[1] / "src" / "rectveil" / "tessdata" / "eng.traineddata"
+    if not bundled.is_file():
+        pytest.skip("Project-local OCR language data is not installed")
     with pymupdf.open() as source:
         page = source.new_page(width=400, height=200)
         page.insert_text((30, 90), "ALPHA ALPHA", fontsize=32)
@@ -115,3 +118,16 @@ def test_damaged_character_mapping_triggers_ocr() -> None:
 
     assert _needs_ocr(blocks("A\x13\x05\x12"))
     assert not _needs_ocr(blocks("ALPHA BETA"))
+
+
+def test_ocr_matches_accented_query_when_recognition_drops_accent(monkeypatch) -> None:
+    document = pymupdf.open()
+    document.new_page()
+    chars = [{"c": char, "bbox": (index * 10, 0, index * 10 + 8, 12)}
+             for index, char in enumerate("maka")]
+    block = {"lines": [{"spans": [{"chars": chars}]}]}
+    monkeypatch.setattr(search, "_page_blocks", lambda _page, _flags: [block])
+    assert find_matches(document, "mąka") == []
+    block["_ocr"] = True
+    assert len(find_matches(document, "mąka")) == 1
+    assert len(find_matches(document, "maka")) == 1
