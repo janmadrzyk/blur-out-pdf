@@ -1,4 +1,4 @@
-# BlurOut PDF technical specification (draft, 0.1)
+# BlurOut PDF technical specification
 
 ## Purpose and scope
 
@@ -18,7 +18,7 @@ The product name is **BlurOut PDF**. The Windows executable is `BlurOutPDF.exe`,
 
 - `document.py` owns the open document, pending redactions and pending rotations. PDF redaction rectangles are stored in unrotated PDF page coordinates as `(x0, y0, x1, y1)` point values, with a page index and style. Raster rectangles are stored in image pixel coordinates, with a frame/page index and style. Display coordinates are converted with the page rotation/derotation matrices or raster scale/rotation transform.
 - `viewer.py` creates one lightweight widget per page, renders visible pages on demand and retains at most six rendered page images. It owns only view state (zoom, layout mode, current page, highlight rectangles).
-- `window.py` owns menus, actions and dialogs. It saves only language and cover style in `QSettings`. `i18n.py` contains English/Polish strings; source identifiers and repository content remain English.
+- `window.py` owns menus, actions and dialogs. It saves UI preferences, OCR language, and recent open/save directories in `QSettings`. `i18n.py` contains English/Polish strings; source identifiers and repository content remain English.
 - `search.py` normalizes text for case/diacritic options and finds words or phrases within a line. It currently does not find phrases across line or page breaks.
 - Pillow handles raster input and output for JPEG, PNG, TIFF, BMP and WebP, including multi-page TIFF. A raster document reports no searchable text, and the window disables the search field and related actions while it is active.
 
@@ -33,13 +33,23 @@ The product name is **BlurOut PDF**. The Windows executable is `BlurOutPDF.exe`,
 
 ## UI and visual system
 
-Use native Qt widgets with a restrained Windows-style palette: light surfaces `#ffffff/#f3f5f8`, dark surfaces `#171b22/#222832`, blue `#2d77bf` for active controls, and a single 24 px stroke-icon family. All controls have text or tooltips. The top menu has File and Settings; the search field sits at the right, following the supplied screenshot's field, arrows and option menu. The editing toolbar can be hidden. The bottom bar centers page navigation and places page mode and zoom on the right. The two requested page-mode icons currently mean single and continuous; facing modes are deferred until their behavior is implemented.
+Use native Qt widgets with a restrained Windows-style palette: light surfaces `#ffffff/#f3f5f8`, dark surfaces `#171b22/#222832`, blue `#2d77bf` for active controls, and a single 24 px stroke-icon family. All controls have text or tooltips. The top menu has File, Edit and Settings; the search field sits at the right, following the supplied screenshot's field, arrows and option menu. The editing toolbar can be hidden. The bottom bar centers page navigation and places page mode and zoom on the right. The two requested page-mode icons currently mean single and continuous; facing modes are deferred until their behavior is implemented.
 
 The operating-system color scheme is read when the window opens and updated when Windows reports a theme change. The application and installer use the transparent program icon based on the supplied draft.
 
 ## Packaging and licensing
 
 Python 3.11+, PySide6, PyMuPDF and Pillow. PyInstaller builds a Windows app directory; Inno Setup packages it into one installer and adds Open with registrations for PDF, JPEG/JPG, PNG, TIFF, BMP and WebP without changing the user's default viewer. Source and distribution use AGPL-3.0-only to match the open-source route for PyMuPDF. Before public release, perform a dependency notice and installer verification pass.
+
+## Release 1.0 plan and decisions
+
+The first public release targets version **1.0.0**. Version information should have one authoritative source and appear consistently in the application, Windows executable metadata, installer, documentation, changelog and Git tag `v1.0.0`. The version and license must be visible from an About dialog. This section defines the target release; it does not imply that version 1.0.0 has already shipped.
+
+OCR remains optional and uses compatible language data already available on the user's computer. The installer will not bundle or download OCR models. Search of text embedded in a PDF remains available without OCR; searching text in scanned pages depends on the local OCR engine and the selected language data. Missing OCR support should be reported through the existing bottom status-bar message, without interrupting ordinary document reading or embedded-text search. The README must explain this distinction, local dependency and language selection clearly.
+
+The Windows installer should keep a stable application identity and installation location across versions. It should install from scratch when the app is absent, replace an older version while retaining user settings, tell the user when the same version is already installed, and refuse an accidental downgrade from a newer version. An upgrade must preserve Open with integration and uninstallability. This is an installer-based update path, not a network auto-updater.
+
+Before publishing, audit the repository and tracked history for private data and unnecessary artifacts; review third-party licenses and required notices; polish the README, changelog and safe synthetic screenshots; align local and CI build commands; and test the exact installer intended for release on a clean Windows environment. Publish only after release-candidate checks pass, with a GitHub Release containing the installer, release notes and SHA-256 checksum. The ordered work and per-issue completion criteria live in [ISSUES.md](ISSUES.md).
 
 ## Verification and remaining work
 
