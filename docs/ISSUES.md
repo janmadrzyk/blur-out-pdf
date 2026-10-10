@@ -4,7 +4,7 @@ This is the editable checklist for preparing the first public release. Work thro
 
 ## Issue 1 — Audit and prepare the repository
 
-- [ ] **Issue 1 complete**
+- [x] **Issue 1 complete**
 
 **Depends on:** Nothing.
 
@@ -21,7 +21,7 @@ This is the editable checklist for preparing the first public release. Work thro
 - A new contributor can find the setup and build instructions from the README, and a prospective user can understand the features and limitations.
 - `git status` is clean after the focused documentation/repository commit.
 
-**Completion record:** _Commit / evidence / date to be added._
+**Completion record:** 2026-10-10. Commit `54278e1` updates the README and adds the [repository audit](REPOSITORY_AUDIT.md). Evidence: 30 reachable commits and 133 unique historical file blobs reviewed; no private project content found; the owner approved the author identity in commit metadata. The screenshot source and image metadata were checked, local documentation links passed, and `git diff --check` was clean. The checklist closure is recorded in the following commit.
 
 ## Issue 2 — Document OCR behavior and third-party licensing
 
