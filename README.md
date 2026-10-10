@@ -1,16 +1,19 @@
 # BlurOut PDF
 
-BlurOut PDF is a small, offline Windows PDF reader focused on drawing rectangular redactions and saving a shareable copy.
+BlurOut PDF is a small, offline Windows document viewer for PDFs and raster images, focused on drawing rectangular redactions and saving a shareable copy.
 
 ![BlurOut PDF showing a pending redaction in dark mode](docs/assets/ui-preview.png)
 
 ## Current features
 
 - Open regular and password-protected PDFs; scroll through pages continuously or use single-page mode.
+- Open raster images in JPEG/JPG, PNG, TIFF, BMP and WebP formats. Multi-page TIFF files appear as a sequence of pages.
 - Draw an area with the left mouse button while **Redact** is active. The selection is pending until saved.
-- Undo the last pending redaction with Ctrl+Z.
+- Undo the last pending redaction with Ctrl+Z. Text search is disabled while a raster image is active.
 - Save or Save as a fully rewritten PDF. Text intersecting the area is removed with PyMuPDF redactions; overlapping image pixels and vector content are removed. On a redaction save, the exporter also strips common hidden data, including metadata, embedded files, JavaScript, links and form responses.
-- Choose black, fine-grain or coarse-grain covering. Grain is generated independently of the original content; it is not a blur of private pixels.
+- Save a raster image in its current format or use **Save as** to convert it to another supported raster format. A single-image **Save as** switches the open tab to the new file. Saving rewrites the pixels under each redaction and strips source image metadata, including EXIF data. Converting a multi-page TIFF to PNG, JPEG, BMP or WebP creates numbered files in a separate folder; the TIFF stays open with its pending changes intact.
+- Choose black or a blurred cover style. Blurred styles are derived from the source image and can retain visual clues; black is the safest option for sensitive content.
+- Export PDF pages as raster images at a fixed 200 DPI. Multi-page PNG, JPEG, BMP and WebP exports are numbered files in a dedicated folder; TIFF is written as one multi-page file.
 - Rotate pages, search text, navigate pages, and control zoom from the percentage box and slider.
 - Search scanned pages with OCR when Tesseract language data is available. **Settings > OCR language** defaults to the Windows UI language plus English; it lists available models for manual selection and shows a warning when the chosen model is missing. Text already embedded in a PDF remains searchable without OCR.
 - Polish on Polish systems; English elsewhere. Language can be changed in Settings. The UI follows the operating system's light/dark theme, including changes while the app is open.
@@ -28,7 +31,7 @@ uv pip install --python .venv\Scripts\python.exe -e ".[dev]"
 .venv\Scripts\python.exe run.py
 ```
 
-Open a file directly with `.venv\Scripts\python.exe run.py C:\path\to\file.pdf`.
+Open a file directly with `.venv\Scripts\python.exe run.py C:\path\to\file.pdf` (or a supported raster image). The installer adds BlurOut PDF to Windows **Open with** for PDF and supported raster extensions without changing the default app.
 
 ## Verify
 

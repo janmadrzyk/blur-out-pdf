@@ -24,6 +24,11 @@ from .search import OCR_LANGUAGES, _tessdata_directory, find_matches, ocr_langua
 from .viewer import PdfViewer
 
 
+IMAGE_FORMATS = (("png", "png"), ("jpeg", "jpg"), ("tiff", "tiff"),
+                 ("bmp", "bmp"), ("webp", "webp"))
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
+
+
 @dataclass
 class DocumentTab:
     document: PdfDocument
@@ -159,14 +164,15 @@ class MainWindow(QMainWindow):
             self._active_tab = context
             self.document = context.document
             self.viewer = context.viewer
-            self.matches = context.matches
-            self.match_index = context.match_index
-            self.viewer.matches = context.matches
+            self.matches = [] if context.document.is_raster else context.matches
+            self.match_index = -1 if context.document.is_raster else context.match_index
+            self.viewer.matches = self.matches
             self.search_field.blockSignals(True)
-            self.search_field.setText(context.search_text)
+            self.search_field.setText("" if context.document.is_raster else context.search_text)
             self.search_field.blockSignals(False)
-            self._update_search(navigate=False)
-        if context is None:
+            if not context.document.is_raster:
+                self._update_search(navigate=False)
+        if context is None or context.document.is_raster:
             self.search_count.clear()
             self.search_prev.setEnabled(False)
             self.search_next.setEnabled(False)
@@ -222,6 +228,8 @@ class MainWindow(QMainWindow):
         self.save_as_action = self.file_menu.addAction("")
         self.save_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
         self.save_as_action.triggered.connect(self.save_as)
+        self.export_images_action = self.file_menu.addAction("")
+        self.export_images_action.triggered.connect(self.export_images)
         self.metadata_action = self.file_menu.addAction("")
         self.metadata_action.triggered.connect(self._edit_metadata)
         self.file_menu.addSeparator()
@@ -326,10 +334,10 @@ class MainWindow(QMainWindow):
         self.search_clear = self._button("close", self.search_field.clear)
         row.addWidget(self.search_clear)
         bar.setCornerWidget(search, Qt.Corner.TopRightCorner)
-        find_action = QAction(self)
-        find_action.setShortcut(QKeySequence.StandardKey.Find)
-        find_action.triggered.connect(self._focus_search)
-        self.addAction(find_action)
+        self.find_action = QAction(self)
+        self.find_action.setShortcut(QKeySequence.StandardKey.Find)
+        self.find_action.triggered.connect(self._focus_search)
+        self.addAction(self.find_action)
 
     def _make_toolbar(self) -> None:
         self.edit_toolbar = QToolBar(self)
@@ -493,6 +501,7 @@ class MainWindow(QMainWindow):
     def _translate_ui(self) -> None:
         for target, key in ((self.file_menu, "file"), (self.open_action, "open"),
                             (self.save_action, "save"), (self.save_as_action, "save_as"),
+                            (self.export_images_action, "export_images"),
                             (self.metadata_action, "edit_metadata"),
                             (self.exit_action, "exit"), (self.edit_menu, "edit_menu"),
                             (self.undo_action, "undo"), (self.redo_action, "redo"),
@@ -540,12 +549,16 @@ class MainWindow(QMainWindow):
 
     def _refresh_enabled(self) -> None:
         has_document = self.document.is_open
-        for control in (self.save_action, self.save_as_action, self.metadata_action, self.redact_action,
+        has_pdf = has_document and not self.document.is_raster
+        for control in (self.save_action, self.save_as_action, self.redact_action,
                         self.redact_button, self.left_action, self.right_action, self.first_button,
                         self.prev_button, self.page_field, self.next_button, self.last_button,
-                        self.single_button, self.continuous_button, self.zoom_list,
-                        self.zoom_slider, self.search_field):
+                        self.single_button, self.continuous_button, self.zoom_list, self.zoom_slider):
             control.setEnabled(has_document)
+        self.metadata_action.setEnabled(has_pdf)
+        self.export_images_action.setEnabled(has_pdf)
+        self.search_widget.setEnabled(has_pdf)
+        self.find_action.setEnabled(has_pdf)
         self._refresh_history_actions()
         self._set_page_number(self.viewer.current_page)
 
@@ -622,7 +635,7 @@ class MainWindow(QMainWindow):
         self._update_redact_presentation()
 
     def _edit_metadata(self) -> None:
-        if not self.document.is_open:
+        if not self.document.is_open or self.document.is_raster:
             return
         dialog = MetadataEditorDialog(
             self,
@@ -717,7 +730,7 @@ class MainWindow(QMainWindow):
 
     def open_dialog(self) -> None:
         initial_directory = self._initial_directory("last_open_directory")
-        dialog = QFileDialog(self, self.t("open_pdf"), initial_directory, self.t("pdf_filter"))
+        dialog = QFileDialog(self, self.t("open_document"), initial_directory, self.t("document_filter"))
         dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
         dialog.setFileMode(QFileDialog.FileMode.ExistingFiles)
         theme_file_dialog(dialog, self.dark)
@@ -772,6 +785,10 @@ class MainWindow(QMainWindow):
         if not self.document.is_open:
             return False
         initial_directory = self._initial_directory("last_save_directory", self.document.path.parent)
+        if self.document.is_raster:
+            suggested = Path(initial_directory) / f"{self.document.path.stem}-redacted{self.document.path.suffix}"
+            target = self._choose_image_destination(self.t("save_image"), suggested)
+            return self._save_to(target) if target is not None else False
         suggested = str(Path(initial_directory) / f"{self.document.path.stem}-redacted.pdf")
         dialog = QFileDialog(self, self.t("save_pdf"), suggested, self.t("pdf_filter"))
         dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
@@ -788,6 +805,56 @@ class MainWindow(QMainWindow):
             path += ".pdf"
         return self._save_to(path)
 
+    def _choose_image_destination(self, title: str, suggested: Path) -> Path | None:
+        filters = {self.t(f"{name}_filter"): suffix for name, suffix in IMAGE_FORMATS}
+        dialog = QFileDialog(self, title, str(suggested), ";;".join(filters))
+        dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+        selected_filter = next((name for name, suffix in filters.items()
+                                if f".{suffix}" == suggested.suffix.lower()), next(iter(filters)))
+        if suggested.suffix.lower() == ".jpeg":
+            selected_filter = self.t("jpeg_filter")
+        elif suggested.suffix.lower() == ".tif":
+            selected_filter = self.t("tiff_filter")
+        dialog.selectNameFilter(selected_filter)
+        dialog.setDefaultSuffix(filters[selected_filter])
+
+        def change_format(name: str) -> None:
+            suffix = filters[name]
+            dialog.setDefaultSuffix(suffix)
+            selected = dialog.selectedFiles()
+            if selected and Path(selected[0]).suffix.lower() in IMAGE_SUFFIXES:
+                dialog.selectFile(str(Path(selected[0]).with_suffix(f".{suffix}")))
+
+        dialog.filterSelected.connect(change_format)
+        theme_file_dialog(dialog, self.dark)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        selected = dialog.selectedFiles()
+        if not selected:
+            return None
+        destination = Path(selected[0])
+        if destination.suffix.lower() not in IMAGE_SUFFIXES:
+            destination = destination.with_suffix(f".{filters[dialog.selectedNameFilter()]}")
+        return destination
+
+    def export_images(self) -> bool:
+        if not self.document.is_open or self.document.is_raster:
+            return False
+        initial_directory = self._initial_directory("last_save_directory", self.document.path.parent)
+        suggested = Path(initial_directory) / f"{self.document.path.stem}-images.png"
+        target = self._choose_image_destination(self.t("export_images"), suggested)
+        if target is None:
+            return False
+        try:
+            outputs = self.document.export_images(target, dpi=200)
+        except Exception as error:
+            QMessageBox.critical(self, self.t("error"), self.t("export_error", error=error))
+            return False
+        self.settings.setValue("last_save_directory", str(target.resolve().parent))
+        self.statusBar().showMessage(self.t("exported_images", count=len(outputs), path=outputs[0].parent))
+        return True
+
     def _save_to(self, path: str | Path) -> bool:
         destination = Path(path).resolve()
         for context in self._document_tabs.values():
@@ -796,11 +863,14 @@ class MainWindow(QMainWindow):
                     QMessageBox.critical(self, self.t("error"), self.t("save_target_open"))
                     return False
         try:
-            self.document.save(destination)
+            outputs = self.document.save(destination)
         except Exception as error:
             QMessageBox.critical(self, self.t("error"), self.t("save_error", error=error))
             return False
         self.settings.setValue("last_save_directory", str(Path(path).resolve().parent))
+        if outputs is not None and len(outputs) > 1:
+            self.statusBar().showMessage(self.t("exported_images", count=len(outputs), path=outputs[0].parent))
+            return True
         self.viewer.cache.clear()
         self.viewer.redaction_cache.clear()
         self.viewer.rebuild()
@@ -898,11 +968,13 @@ class MainWindow(QMainWindow):
         return dpi / 72
 
     def _focus_search(self) -> None:
+        if not self.document.is_open or self.document.is_raster:
+            return
         self.search_field.setFocus()
         self.search_field.selectAll()
 
     def _update_search(self, *_args, navigate: bool = True) -> None:
-        if self.document.pdf is None:
+        if self.document.pdf is None or self.document.is_raster:
             return
         if self._active_tab:
             self._active_tab.search_text = self.search_field.text()

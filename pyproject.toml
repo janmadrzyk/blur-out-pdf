@@ -7,7 +7,7 @@ name = "blurout-pdf"
 version = "0.1.0"
 description = "A small Windows PDF reader with permanent area redaction"
 requires-python = ">=3.11"
-dependencies = ["PySide6>=6.8,<7", "PyMuPDF>=1.26,<2"]
+dependencies = ["PySide6>=6.8,<7", "PyMuPDF>=1.26,<2", "Pillow>=11,<13"]
 
 [project.scripts]
 blurout-pdf = "blurout_pdf.app:main"

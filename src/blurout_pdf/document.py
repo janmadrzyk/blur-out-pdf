@@ -3,17 +3,24 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from io import BytesIO
+import math
 from pathlib import Path
 import os
 import tempfile
+from typing import TYPE_CHECKING
 
 import pymupdf
 
 from .metadata import METADATA_FIELDS
 from .redaction_visual import render_blur_png
 
+if TYPE_CHECKING:
+    from PIL import Image
+
 
 STYLES = ("black", "fine", "coarse")
+RASTER_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"})
 
 
 @dataclass(frozen=True)
@@ -38,10 +45,15 @@ class PdfDocument:
         self._metadata_cleared = False
         self._metadata_overrides: dict[str, str] = {}
         self._xml_metadata_override: str | None = None
+        self._raster_pages: list[Image.Image] | None = None
 
     @property
     def is_open(self) -> bool:
         return self.pdf is not None
+
+    @property
+    def is_raster(self) -> bool:
+        return self._raster_pages is not None
 
     @property
     def dirty(self) -> bool:
@@ -61,10 +73,25 @@ class PdfDocument:
         return len(self.pdf) if self.pdf else 0
 
     def open(self, path: str | Path, password: str | None = None) -> bool:
-        candidate = pymupdf.open(str(path))
-        if not candidate.is_pdf:
-            candidate.close()
-            raise ValueError("Only PDF files are supported")
+        source_path = Path(path)
+        raster_pages: list[Image.Image] | None = None
+        if source_path.suffix.lower() in RASTER_EXTENSIONS:
+            from .raster_io import png_bytes, read_raster
+
+            raster_pages = read_raster(source_path)
+            candidate = pymupdf.open()
+            try:
+                for image in raster_pages:
+                    page = candidate.new_page(width=image.width, height=image.height)
+                    page.insert_image(page.rect, stream=png_bytes(image))
+            except Exception:
+                candidate.close()
+                raise
+        else:
+            candidate = pymupdf.open(str(source_path))
+            if not candidate.is_pdf:
+                candidate.close()
+                raise ValueError("Only PDF and supported raster images are supported")
         if candidate.needs_pass:
             if password is None:
                 candidate.close()
@@ -75,7 +102,8 @@ class PdfDocument:
         if self.pdf:
             self.pdf.close()
         self.pdf = candidate
-        self.path = Path(path)
+        self.path = source_path
+        self._raster_pages = raster_pages
         self.redactions.clear()
         self.rotations.clear()
         self._undo_states.clear()
@@ -89,6 +117,7 @@ class PdfDocument:
         if self.pdf:
             self.pdf.close()
         self.pdf = None
+        self._raster_pages = None
         self.path = None
         self.redactions.clear()
         self.rotations.clear()
@@ -306,13 +335,20 @@ class PdfDocument:
         finally:
             page.set_rotation(original_rotation)
 
-    def save(self, target: str | Path) -> None:
+    def save(self, target: str | Path) -> list[Path] | None:
         """Write a full replacement PDF, then atomically replace the destination."""
         if self.pdf is None:
             raise RuntimeError("No PDF is open")
+        destination = Path(target)
+        if self.is_raster:
+            if destination.suffix.lower() not in RASTER_EXTENSIONS:
+                raise ValueError("Raster images must be saved in a supported raster format")
+            return self._save_raster(destination)
+        if destination.suffix.lower() != ".pdf":
+            raise ValueError("Use export_images() to export a PDF as an image")
         if any(item.style != "black" for item in self.redactions):
             self.refresh_redaction_visuals()
-        destination = Path(target).resolve()
+        destination = destination.resolve()
         destination.parent.mkdir(parents=True, exist_ok=True)
         # Work on a private copy so a failed save cannot alter the open document.
         copy = pymupdf.open(stream=self.pdf.tobytes(), filetype="pdf")
@@ -436,6 +472,79 @@ class PdfDocument:
             if temporary and temporary.exists():
                 temporary.unlink()
         self.open(destination)
+
+    def _save_raster(self, target: Path) -> list[Path]:
+        """Apply edits to pixels, preserving transparency outside censored areas."""
+        from PIL import Image, ImageDraw
+        from .raster_io import write_raster
+
+        if self._raster_pages is None:
+            raise RuntimeError("No raster image is open")
+        if any(item.style != "black" for item in self.redactions):
+            self.refresh_redaction_visuals()
+        pages = [source.copy() for source in self._raster_pages]
+        for redaction in self.redactions:
+            image = pages[redaction.page_index]
+            area = pymupdf.Rect(redaction.rect)
+            left = max(0, int(area.x0))
+            top = max(0, int(area.y0))
+            right = min(image.width, math.ceil(area.x1))
+            bottom = min(image.height, math.ceil(area.y1))
+            if right <= left or bottom <= top:
+                continue
+            if redaction.style == "black":
+                fill = (0, 0, 0, 255) if image.mode == "RGBA" else (0, 0, 0)
+                ImageDraw.Draw(image).rectangle((left, top, right - 1, bottom - 1), fill=fill)
+            else:
+                if redaction.visual_data is None:
+                    raise RuntimeError("Could not render the blur for this redaction")
+                with Image.open(BytesIO(redaction.visual_data)) as source:
+                    visual = source.convert(image.mode).resize(
+                        (right - left, bottom - top), Image.Resampling.LANCZOS,
+                    )
+                image.paste(visual, (left, top))
+        for index, delta in self.rotations.items():
+            pages[index] = pages[index].rotate(-delta, expand=True)
+        outputs = write_raster(target, pages)
+        # A multi-page save to PNG/JPEG/BMP/WebP creates several files. Keep
+        # the source tab open; there is no single replacement document.
+        if len(outputs) == 1:
+            self.open(outputs[0])
+        return outputs
+
+    def export_images(self, target: str | Path, dpi: int = 200) -> list[Path]:
+        """Render a redacted private PDF copy to raster pages."""
+        from PIL import Image
+        from .raster_io import write_raster
+
+        if self.pdf is None:
+            raise RuntimeError("No PDF is open")
+        if self.is_raster:
+            raise ValueError("Raster images can be saved directly with save()")
+        if dpi <= 0:
+            raise ValueError("DPI must be positive")
+        destination = Path(target).resolve()
+        if destination.suffix.lower() not in RASTER_EXTENSIONS:
+            raise ValueError("Unsupported image output format")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="blurout-export-", dir=destination.parent) as directory:
+            private = PdfDocument()
+            private.pdf = pymupdf.open(stream=self.pdf.tobytes(), filetype="pdf")
+            private.redactions = list(self.redactions)
+            private.rotations = dict(self.rotations)
+            private._metadata_cleared = self._metadata_cleared
+            private._metadata_overrides = dict(self._metadata_overrides)
+            private._xml_metadata_override = self._xml_metadata_override
+            try:
+                private.save(Path(directory) / "prepared.pdf")
+                assert private.pdf is not None
+                images = []
+                for page in private.pdf:
+                    pixmap = page.get_pixmap(dpi=dpi, alpha=False)
+                    images.append(Image.frombytes("RGB", (pixmap.width, pixmap.height), pixmap.samples))
+                return write_raster(destination, images)
+            finally:
+                private.close()
 
     @staticmethod
     def _metadata_text(value: object) -> str:

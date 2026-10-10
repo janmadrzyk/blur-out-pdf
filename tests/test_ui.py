@@ -70,6 +70,49 @@ def test_themed_file_dialogs_keep_open_and_save_flows(tmp_path: Path, monkeypatc
     app.quit()
 
 
+def test_raster_tab_disables_pdf_search_and_metadata_but_retains_editing(tmp_path: Path, monkeypatch) -> None:
+    image_module = pytest.importorskip("PIL.Image")
+    app = QApplication.instance() or QApplication([])
+    settings_file = tmp_path / "settings.ini"
+    monkeypatch.setattr(window_module, "QSettings", lambda *_args: QSettings(
+        str(settings_file), QSettings.Format.IniFormat,
+    ))
+    pdf_path = tmp_path / "text.pdf"
+    with pymupdf.open() as pdf:
+        pdf.new_page().insert_text((50, 80), "FIND THIS")
+        pdf.save(pdf_path)
+    image_path = tmp_path / "picture.png"
+    image_module.new("RGB", (120, 80), "white").save(image_path)
+
+    window = MainWindow()
+    window.open_path(str(pdf_path))
+    pdf_viewer = window.viewer
+    assert window.search_field.isEnabled()
+    assert window.export_images_action.isEnabled()
+    window.search_field.setText("FIND")
+
+    window.open_path(str(image_path))
+    assert window.document.is_raster
+    assert not window.search_field.isEnabled()
+    assert not window.search_prev.isEnabled()
+    assert not window.search_next.isEnabled()
+    assert not window.find_action.isEnabled()
+    assert not window.metadata_action.isEnabled()
+    assert not window.export_images_action.isEnabled()
+    assert window.redact_action.isEnabled()
+    assert window.left_action.isEnabled()
+    assert window.save_as_action.isEnabled()
+    assert window.search_count.text() == ""
+
+    window.tabs.setCurrentIndex(window.tabs.indexOf(pdf_viewer))
+    assert window.search_field.isEnabled()
+    assert window.search_field.text() == "FIND"
+    assert window.metadata_action.isEnabled()
+    assert window.export_images_action.isEnabled()
+    window.close()
+    app.quit()
+
+
 def test_ocr_language_setting_warns_and_invalidates_search_cache(tmp_path: Path, monkeypatch) -> None:
     app = QApplication.instance() or QApplication([])
     settings_file = tmp_path / "settings.ini"
