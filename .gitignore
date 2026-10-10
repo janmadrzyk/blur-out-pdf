@@ -13,4 +13,5 @@ build/
 dist/
 *.spec
 *.pdf
+*.traineddata
 !tests/fixtures/*.pdf

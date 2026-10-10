@@ -10,6 +10,8 @@ if (-not (Test-Path ".venv\Scripts\python.exe")) {
 
 & ".venv\Scripts\python.exe" -m PyInstaller --noconfirm --windowed --onedir --name BlurOutPDF --paths src --icon "packaging\app.ico" --add-data "src\blurout_pdf\assets\app.png;blurout_pdf\assets" run.py
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed." }
+& ".venv\Scripts\python.exe" "scripts\prepare_bundle.py"
+if ($LASTEXITCODE -ne 0) { throw "Bundle notice verification failed." }
 
 if (-not $InnoCompiler) {
     $found = Get-Command ISCC.exe -ErrorAction SilentlyContinue

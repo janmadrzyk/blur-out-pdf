@@ -24,6 +24,8 @@ jobs:
         run: |
           python -m PyInstaller --noconfirm --clean --windowed --onedir --name BlurOutPDF --paths src --icon packaging/app.ico --add-data "src/blurout_pdf/assets/app.png;blurout_pdf/assets" run.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/prepare_bundle.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "packaging\windows.iss"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4

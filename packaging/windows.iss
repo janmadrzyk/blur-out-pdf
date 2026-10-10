@@ -22,7 +22,6 @@ Name: "polish"; MessagesFile: "compiler:Languages\Polish.isl"
 
 [Files]
 Source: "..\dist\BlurOutPDF\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
-Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\BlurOut PDF"; Filename: "{app}\BlurOutPDF.exe"
