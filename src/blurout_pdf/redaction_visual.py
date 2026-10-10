@@ -7,10 +7,12 @@ from collections.abc import Iterable
 
 import pymupdf
 from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QRect, Qt
-from PySide6.QtGui import QImage, QPainter
+from PySide6.QtGui import QBrush, QImage, QPainter, QTransform
 
 
 SNAPSHOT_SCALE = 3.0  # 216 dpi: detailed enough for printed blur regions.
+MAX_PDF_SNAPSHOT_SIDE = 2048
+MAX_RASTER_SNAPSHOT_SIDE = 1536  # Bound preview decoding and intermediate Qt images.
 COARSE_PIXEL_SCALE = 2.5
 
 
@@ -19,6 +21,7 @@ def render_blur_png(
     area: pymupdf.Rect,
     style: str,
     preceding_overlays: Iterable[tuple[pymupdf.Rect, str, bytes | None]] = (),
+    raster: bool = False,
 ) -> bytes:
     """Return a content-derived, pixelated and grained image for a redaction."""
     original_rotation = page.rotation
@@ -27,9 +30,14 @@ def render_blur_png(
         clip = pymupdf.Rect(area) & page.rect
         if clip.is_empty:
             raise ValueError("The redaction area is outside the visible page")
-        pixmap = page.get_pixmap(
-            matrix=pymupdf.Matrix(SNAPSHOT_SCALE, SNAPSHOT_SCALE), clip=clip, alpha=False,
-        )
+        # Raster pages already have pixel-sized coordinates. Rendering them at
+        # 216 DPI tripled both dimensions and made large previews exceed Qt's
+        # 256 MB image-decoding limit. Blur intentionally loses fine detail, so
+        # a bounded source is sufficient even when the output area is huge.
+        max_side = MAX_RASTER_SNAPSHOT_SIDE if raster else MAX_PDF_SNAPSHOT_SIDE
+        scale = min(1.0 if raster else SNAPSHOT_SCALE,
+                    max_side / max(clip.width, clip.height))
+        pixmap = page.get_pixmap(matrix=pymupdf.Matrix(scale, scale), clip=clip, alpha=False)
     finally:
         page.set_rotation(original_rotation)
 
@@ -47,10 +55,10 @@ def render_blur_png(
             continue
         pixmap_x, pixmap_y = pixmap.irect[:2]
         target = QRect(
-            round(overlap.x0 * SNAPSHOT_SCALE - pixmap_x),
-            round(overlap.y0 * SNAPSHOT_SCALE - pixmap_y),
-            round(overlap.width * SNAPSHOT_SCALE),
-            round(overlap.height * SNAPSHOT_SCALE),
+            round(overlap.x0 * scale - pixmap_x),
+            round(overlap.y0 * scale - pixmap_y),
+            round(overlap.width * scale),
+            round(overlap.height * scale),
         ).intersected(source.rect())
         if target.isEmpty():
             continue
@@ -69,7 +77,7 @@ def render_blur_png(
             painter.drawImage(target, overlay_image.copy(source_rect))
     painter.end()
 
-    blurred = blur_image(source, style, f"{page.number}:{tuple(area)}:{style}")
+    blurred = blur_image(source, style, f"{page.number}:{tuple(area)}:{style}", scale)
 
     encoded = QByteArray()
     buffer = QBuffer(encoded)
@@ -83,13 +91,13 @@ def render_blur_png(
     return bytes(encoded)
 
 
-def blur_image(source: QImage, style: str, seed: str) -> QImage:
+def blur_image(source: QImage, style: str, seed: str, scale: float = SNAPSHOT_SCALE) -> QImage:
     """Apply the same fine or coarse redaction texture to a rendered image."""
     if style not in ("fine", "coarse"):
         raise ValueError(f"Unsupported blur style: {style}")
 
     points_per_cell = 10 if style == "fine" else 18 * COARSE_PIXEL_SCALE
-    cell_pixels = points_per_cell * SNAPSHOT_SCALE
+    cell_pixels = max(1.0, points_per_cell * scale)
     small = source.scaled(
         max(1, round(source.width() / cell_pixels)),
         max(1, round(source.height() / cell_pixels)),
@@ -104,24 +112,17 @@ def blur_image(source: QImage, style: str, seed: str) -> QImage:
     # Add a fine or coarse deterministic texture to make the two blur styles
     # visibly distinct while obscuring the rendered source.
     grain_step = 2 if style == "fine" else round(7 * COARSE_PIXEL_SCALE)
-    grain_width = max(1, (source.width() + grain_step - 1) // grain_step)
-    grain_height = max(1, (source.height() + grain_step - 1) // grain_step)
-    rng = random.Random(seed)
-    rgba = bytearray(grain_width * grain_height * 4)
-    for offset in range(0, len(rgba), 4):
-        shade = rng.randrange(40, 216)
-        rgba[offset:offset + 4] = bytes((shade, shade, shade, 255))
-    grain = QImage(
-        rgba, grain_width, grain_height, grain_width * 4,
-        QImage.Format.Format_RGBA8888,
-    ).copy().scaled(
-        source.size(), Qt.AspectRatioMode.IgnoreAspectRatio,
-        Qt.TransformationMode.FastTransformation,
-    )
+    # A reusable noise tile avoids a Python loop and a second full-size image.
+    # The brush transform sets the visible grain size without enlarging it.
+    tile_side = 256
+    noise = random.Random(seed).randbytes(tile_side * tile_side)
+    grain = QImage(noise, tile_side, tile_side, tile_side, QImage.Format.Format_Grayscale8).copy()
+    brush = QBrush(grain)
+    brush.setTransform(QTransform().scale(grain_step, grain_step))
     painter = QPainter(blurred)
-    painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Overlay)
+    painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
     painter.setOpacity(0.12 if style == "fine" else 0.24)
-    painter.drawImage(0, 0, grain)
+    painter.fillRect(blurred.rect(), brush)
     painter.end()
 
     return blurred

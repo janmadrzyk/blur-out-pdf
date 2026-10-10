@@ -106,12 +106,17 @@ class PageCanvas(QWidget):
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         if self.resize_target and event.button() == Qt.MouseButton.LeftButton:
-            redaction_index, _, _ = self.resize_target
+            redaction_index, _, original_rect = self.resize_target
             changed = self.resize_recorded
             self.resize_target = None
             self.resize_recorded = False
             if changed:
-                self.viewer.document.refresh_redaction_visuals(self.index, redaction_index)
+                document = self.viewer.document
+                old_area = document.display_to_page(self.index, original_rect)
+                new_area = pymupdf.Rect(document.redactions[redaction_index].rect)
+                document.refresh_redaction_visuals(
+                    self.index, redaction_index, changed_area=old_area | new_area,
+                )
                 self.redaction_edited.emit(self.index)
             self.update()
             self.setCursor(self._default_cursor())

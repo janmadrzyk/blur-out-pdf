@@ -1,9 +1,11 @@
 """End-to-end raster conversion with synthetic content only."""
 
+from io import BytesIO
 from pathlib import Path
 
 import pymupdf
 import pytest
+from PySide6.QtGui import QImage
 
 PIL = pytest.importorskip("PIL")
 from PIL import Image, PngImagePlugin
@@ -188,3 +190,83 @@ def test_pdf_export_to_multipage_tiff(tmp_path: Path) -> None:
         assert result.size == (200, 200)
         result.seek(1)
         assert result.size == (400, 200)
+
+
+def test_large_raster_blur_stays_bounded_and_can_be_saved(tmp_path: Path) -> None:
+    source = tmp_path / "large.png"
+    target = tmp_path / "large-redacted.png"
+    Image.new("RGB", (3500, 3500), "white").save(source)
+    document = PdfDocument()
+    document.open(source)
+    document.add_redaction(0, pymupdf.Rect(0, 0, 3500, 3500), "fine")
+
+    preview = document.redactions[0].visual_data
+    assert preview is not None
+    assert not QImage.fromData(preview, "PNG").isNull()
+    with Image.open(BytesIO(preview)) as decoded:
+        assert max(decoded.size) <= 1536
+        sample = decoded.convert("RGB")
+        assert len({sample.getpixel((x, y))
+                    for x in range(0, decoded.width, 100)
+                    for y in range(0, decoded.height, 100)}) > 1
+    document.save(target)
+    with Image.open(target) as saved:
+        assert saved.size == (3500, 3500)
+
+
+def test_overlapping_raster_blur_uses_previous_redaction(tmp_path: Path) -> None:
+    source = tmp_path / "white.png"
+    Image.new("RGB", (160, 160), "white").save(source)
+    layered = PdfDocument()
+    layered.open(source)
+    layered.add_redaction(0, pymupdf.Rect(10, 10, 100, 100), "black")
+    layered.add_redaction(0, pymupdf.Rect(50, 50, 150, 150), "fine")
+    layered_visual = layered.redactions[1].visual_data
+    layered.undo()
+    layered.redo()
+    assert layered.redactions[1].visual_data == layered_visual
+    plain = PdfDocument()
+    plain.open(source)
+    plain.add_redaction(0, pymupdf.Rect(50, 50, 150, 150), "fine")
+
+    with Image.open(BytesIO(layered.redactions[1].visual_data)) as after_black:
+        with Image.open(BytesIO(plain.redactions[0].visual_data)) as without_black:
+            # Both use the same grain seed. The darker pixel can only come from
+            # the earlier black rectangle under the second blur.
+            assert sum(after_black.convert("RGB").getpixel((20, 20))) < sum(
+                without_black.convert("RGB").getpixel((20, 20)))
+            expected = after_black.convert("RGB").getpixel((20, 20))
+    layered.save(tmp_path / "layered.png")
+    with Image.open(tmp_path / "layered.png") as saved:
+        assert saved.convert("RGB").getpixel((70, 70)) == expected
+
+    saved_first = PdfDocument()
+    saved_first.open(source)
+    saved_first.add_redaction(0, pymupdf.Rect(10, 10, 100, 100), "black")
+    saved_first.save(tmp_path / "first-pass.png")
+    saved_first.add_redaction(0, pymupdf.Rect(50, 50, 150, 150), "fine")
+    with Image.open(BytesIO(saved_first.redactions[0].visual_data)) as after_save:
+        with Image.open(BytesIO(plain.redactions[0].visual_data)) as without_black:
+            assert sum(after_save.convert("RGB").getpixel((20, 20))) < sum(
+                without_black.convert("RGB").getpixel((20, 20)))
+
+
+def test_resizing_earlier_redaction_refreshes_only_affected_later_blurs(tmp_path: Path) -> None:
+    source = tmp_path / "white.png"
+    Image.new("RGB", (200, 200), "white").save(source)
+    document = PdfDocument()
+    document.open(source)
+    document.add_redaction(0, pymupdf.Rect(10, 10, 40, 40), "black")
+    document.add_redaction(0, pymupdf.Rect(30, 30, 90, 90), "fine")
+    document.add_redaction(0, pymupdf.Rect(120, 120, 180, 180), "fine")
+    document.add_redaction(0, pymupdf.Rect(80, 80, 130, 130), "coarse")
+    old_visuals = [item.visual_data for item in document.redactions]
+
+    old_area = pymupdf.Rect(document.redactions[0].rect)
+    new_area = pymupdf.Rect(10, 10, 70, 70)
+    document.update_redaction(0, new_area, refresh_visual=False)
+    document.refresh_redaction_visuals(0, 0, changed_area=old_area | new_area)
+
+    assert document.redactions[1].visual_data is not old_visuals[1]
+    assert document.redactions[2].visual_data is old_visuals[2]
+    assert document.redactions[3].visual_data is not old_visuals[3]

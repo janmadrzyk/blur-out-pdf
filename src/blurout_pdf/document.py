@@ -260,19 +260,31 @@ class PdfDocument:
             (pymupdf.Rect(item.rect), item.style, item.visual_data)
             for item in preceding if item.page_index == page_index
         )
-        return render_blur_png(self.page(page_index), rect, style, overlays)
+        return render_blur_png(self.page(page_index), rect, style, overlays, raster=self.is_raster)
 
-    def refresh_redaction_visuals(self, page_index: int | None = None, start_index: int = 0) -> None:
-        """Rebuild blur images in draw order after an earlier shape changes."""
+    def refresh_redaction_visuals(
+        self,
+        page_index: int | None = None,
+        start_index: int = 0,
+        changed_area: pymupdf.Rect | None = None,
+    ) -> None:
+        """Rebuild affected blur images in draw order after a shape changes."""
         refreshed = list(self.redactions)
+        affected = [pymupdf.Rect(changed_area)] if changed_area is not None else None
         for index in range(max(0, start_index), len(refreshed)):
             item = refreshed[index]
             if item.style != "black" and (page_index is None or item.page_index == page_index):
+                item_rect = pymupdf.Rect(item.rect)
+                if (affected is not None and index != start_index
+                        and not any(item_rect.intersects(area) for area in affected)):
+                    continue
                 preceding = [entry for entry in refreshed[:index] if entry.page_index == item.page_index]
                 refreshed[index] = Redaction(
                     item.page_index, item.rect, item.style,
-                    self._redaction_visual(item.page_index, pymupdf.Rect(item.rect), item.style, preceding),
+                    self._redaction_visual(item.page_index, item_rect, item.style, preceding),
                 )
+                if affected is not None:
+                    affected.append(item_rect)
         self.redactions = refreshed
 
     def rotate(self, page_index: int, degrees: int) -> None:
@@ -288,19 +300,15 @@ class PdfDocument:
         if not self._undo_states:
             return set()
         self._redo_states.append(self._content_state())
-        changed = self._restore_content_state(self._undo_states.pop())
-        for index in changed:
-            self.refresh_redaction_visuals(page_index=index)
-        return changed
+        # History holds the already rendered appearance of every redaction.
+        # Rebuilding all blur regions here adds latency without changing them.
+        return self._restore_content_state(self._undo_states.pop())
 
     def redo(self) -> set[int]:
         if not self._redo_states:
             return set()
         self._undo_states.append(self._content_state())
-        changed = self._restore_content_state(self._redo_states.pop())
-        for index in changed:
-            self.refresh_redaction_visuals(page_index=index)
-        return changed
+        return self._restore_content_state(self._redo_states.pop())
 
     def undo_last_redaction(self) -> int | None:
         """Compatibility wrapper for callers of the original one-step undo."""
@@ -480,8 +488,6 @@ class PdfDocument:
 
         if self._raster_pages is None:
             raise RuntimeError("No raster image is open")
-        if any(item.style != "black" for item in self.redactions):
-            self.refresh_redaction_visuals()
         pages = [source.copy() for source in self._raster_pages]
         for redaction in self.redactions:
             image = pages[redaction.page_index]
