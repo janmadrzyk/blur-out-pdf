@@ -12,27 +12,32 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - name: Install dependencies
-        run: python -m pip install -e ".[dev]"
+          python-version: '3.12.10'
+      - name: Prepare release environment
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          .\.venv\Scripts\python.exe -m pip install -c packaging\constraints-windows.txt -e ".[dev]"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Test
-        run: python -m pytest -q --basetemp=.pytest-temp
+        shell: pwsh
+        run: |
+          .\.venv\Scripts\python.exe -m pytest -q --basetemp=.pytest-temp
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Install Inno Setup
-        run: choco install innosetup --no-progress -y
+        shell: pwsh
+        run: |
+          choco install innosetup --version=6.7.1 --no-progress -y
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build installer
         shell: pwsh
         run: |
-          $version = python scripts/release_version.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -m PyInstaller --noconfirm --clean --windowed --onedir --name BlurOutPDF --paths src --icon packaging/app.ico --version-file build/version_info.txt --add-data "src/blurout_pdf/assets/app.png;blurout_pdf/assets" run.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python scripts/prepare_bundle.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python scripts/check_bundle_imports.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" "packaging\windows.iss"
+          .\packaging\build.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         with:
           name: BlurOutPDF-Windows-installer
-          path: dist/BlurOutPDF-Setup-*.exe
+          path: |
+            dist/BlurOutPDF-Setup-*.exe
+            dist/SHA256.txt
+          if-no-files-found: error

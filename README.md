@@ -64,13 +64,18 @@ The tests reopen saved PDFs and confirm that redacted text and common hidden dat
 
 ## Build a Windows installer
 
-Install [Inno Setup](https://jrsoftware.org/isinfo.php), then run:
+From a clean checkout on Windows, use Python 3.12.10 and [Inno Setup 6.7.1 or newer](https://jrsoftware.org/isinfo.php). Create a virtual environment, install the controlled release dependencies, run the synthetic PDF and raster checks, and build:
 
 ```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -c packaging\constraints-windows.txt -e ".[dev]"
+.\.venv\Scripts\python.exe -m pytest -q --basetemp=.pytest-temp
 .\packaging\build.ps1
 ```
 
-This produces `dist\BlurOutPDF-Setup-1.0.0.exe`. The installer registers BlurOut PDF as an **Open with** option for PDFs and all supported raster formats without taking over their default viewer. The executable, installer and application window use the transparent icon derived from the supplied draft. The version comes from `src/blurout_pdf/_version.py` and is passed to both Windows build tools. See the [1.0.0 release notes](docs/RELEASE_NOTES_1.0.0.md) and [changelog](CHANGELOG.md).
+If Inno Setup is installed in a different location, pass its compiler path with `-InnoCompiler`. The build produces `dist\BlurOutPDF-Setup-1.0.0.exe` and `dist\SHA256.txt`; keep these two files together. Verify a copied installer with `Get-FileHash dist\BlurOutPDF-Setup-1.0.0.exe -Algorithm SHA256` and compare its hash with `dist\SHA256.txt`. The GitHub Windows workflow runs the same tests and build script and retains both files as one artifact.
+
+The installer registers BlurOut PDF as an **Open with** option for PDFs and all supported raster formats without taking over their default viewer. The executable, installer and application window use the transparent icon derived from the supplied draft. The version comes from `src/blurout_pdf/_version.py` and is passed to both Windows build tools. See the [1.0.0 release notes](docs/RELEASE_NOTES_1.0.0.md) and [changelog](CHANGELOG.md).
 
 ## Project layout
 
