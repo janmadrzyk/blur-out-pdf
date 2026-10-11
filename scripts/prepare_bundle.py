@@ -30,6 +30,12 @@ def main() -> None:
         if target.is_file():
             target.unlink()
 
+    # PyInstaller may discover an unrelated ICU on the build machine's PATH.
+    # Qt uses the Windows ICU here; a foreign copy next to the executable
+    # shadows it and makes QtGui fail to load with error 127.
+    for target in INTERNAL.glob("icu*.dll"):
+        target.unlink()
+
     for source in (PROJECT / "LICENSE", PROJECT / "THIRD_PARTY_NOTICES.md"):
         if not source.is_file():
             raise SystemExit(f"Missing notice: {source}")
@@ -48,11 +54,12 @@ def main() -> None:
         if path.is_file() and (
             path.suffix.lower() == ".traineddata"
             or "virtualkeyboard" in path.name.lower()
+            or (path.parent == INTERNAL and path.name.lower().startswith("icu") and path.suffix.lower() == ".dll")
         )
     ]
     if forbidden:
         raise SystemExit(f"Unexpected bundled files: {forbidden}")
-    print("Bundle notices present; no OCR models or Qt Virtual Keyboard")
+    print("Bundle notices present; no OCR models, Qt Virtual Keyboard or foreign ICU")
 
 
 if __name__ == "__main__":

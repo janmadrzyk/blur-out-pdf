@@ -28,6 +28,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python scripts/prepare_bundle.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/check_bundle_imports.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" "packaging\windows.iss"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4

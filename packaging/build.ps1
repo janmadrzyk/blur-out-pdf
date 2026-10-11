@@ -14,6 +14,8 @@ if ($LASTEXITCODE -ne 0) { throw "Could not prepare version metadata." }
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed." }
 & ".venv\Scripts\python.exe" "scripts\prepare_bundle.py"
 if ($LASTEXITCODE -ne 0) { throw "Bundle notice verification failed." }
+& ".venv\Scripts\python.exe" "scripts\check_bundle_imports.py"
+if ($LASTEXITCODE -ne 0) { throw "Bundled Qt modules could not load." }
 
 if (-not $InnoCompiler) {
     $found = Get-Command ISCC.exe -ErrorAction SilentlyContinue

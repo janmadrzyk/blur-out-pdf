@@ -33,6 +33,8 @@ foreach ($fixtureVersion in @("0.9.0")) {
         if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed for $fixtureVersion." }
         & $python "scripts\prepare_bundle.py"
         if ($LASTEXITCODE -ne 0) { throw "Bundle preparation failed for $fixtureVersion." }
+        & $python "scripts\check_bundle_imports.py"
+        if ($LASTEXITCODE -ne 0) { throw "Bundled Qt modules could not load for $fixtureVersion." }
         & $InnoCompiler "/DAppVersion=$fixtureVersion" "/O$outputRoot" "/FTEST-ONLY-BlurOutPDF-Setup-$fixtureVersion" "/Qp" "packaging\windows.iss"
         if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed for $fixtureVersion." }
     }
