@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from .appearance import apply_theme, icon, resolve_dark, theme_file_dialog
+from .about_dialog import AboutDialog
 from .document import PdfDocument, STYLES
 from .i18n import default_language, translate
 from .metadata_dialog import MetadataEditorDialog
@@ -140,6 +141,9 @@ class MainWindow(QMainWindow):
 
     def t(self, key: str, **values: object) -> str:
         return translate(self.language, key, **values)
+
+    def show_about(self) -> None:
+        AboutDialog(self.language, self).exec()
 
     def _wire_viewer(self, viewer: PdfViewer) -> None:
         viewer.redaction_drawn.connect(self._add_redaction)
@@ -296,6 +300,10 @@ class MainWindow(QMainWindow):
         self.toolbar_action.setCheckable(True)
         self.toolbar_action.setChecked(True)
         self.toolbar_action.triggered.connect(lambda checked: self.edit_toolbar.setVisible(checked))
+
+        self.help_menu = bar.addMenu("")
+        self.about_action = self.help_menu.addAction("")
+        self.about_action.triggered.connect(self.show_about)
 
         search = QWidget(bar)
         self.search_widget = search
@@ -506,6 +514,7 @@ class MainWindow(QMainWindow):
                             (self.exit_action, "exit"), (self.edit_menu, "edit_menu"),
                             (self.undo_action, "undo"), (self.redo_action, "redo"),
                             (self.settings_menu, "settings"),
+                            (self.help_menu, "help_menu"), (self.about_action, "about_title"),
                             (self.language_menu, "language"), (self.pl_action, "polish"),
                             (self.en_action, "english"), (self.appearance_menu, "appearance"),
                             (self.style_menu, "style"), (self.ocr_menu, "ocr_language"),

@@ -1,0 +1,9 @@
+# BlurOut PDF 1.0.0 — release notes draft
+
+BlurOut PDF is a local Windows viewer for PDFs and raster images. It lets you mark rectangular areas and save a rewritten document or image with those areas covered. PDF search, page export, raster conversion, metadata editing, two UI languages and light/dark appearance are included.
+
+The black cover is the safer choice for sensitive content. Blurred covers can retain visual clues. Check every saved file, including repeated content elsewhere in a document, before sharing it.
+
+Embedded PDF text search works without OCR. Search on scanned pages requires compatible OCR language data already available on the computer; the installer does not provide or download models.
+
+The Windows installer is still a release candidate. Its lifecycle and clean-system acceptance checks are tracked in [the release checklist](ISSUES.md). No public 1.0.0 release or tag exists yet. The About dialog links to [the planned GitHub repository](https://github.com/janmadrzyk/blur-out-pdf), which will become available when the repository is published.

@@ -4,7 +4,7 @@ Reviewed on 2026-10-10 against the project configuration, the existing local PyI
 
 | Component | Local version | Use and distribution | License / source |
 | --- | --- | --- | --- |
-| BlurOut PDF | 0.1.0 | Application source and installer | AGPL-3.0-only; root `LICENSE`. |
+| BlurOut PDF | 1.0.0 | Application source and installer | AGPL-3.0-only; root `LICENSE`. |
 | CPython | 3.12.10 | Interpreter and standard library bundled by PyInstaller | Python Software Foundation license stack; [Python license](https://docs.python.org/3/license.html). |
 | PyMuPDF and MuPDF | 1.28.2 | PDF rendering, editing and OCR integration | AGPL-3.0 or commercial; [PyMuPDF licensing](https://pymupdf.readthedocs.io/en/latest/about.html). The project uses the AGPL route. |
 | PySide6 Essentials, Addons and Shiboken6 / Qt | 6.11.2 | Windows widgets, rendering and Qt plugins | LGPL-3.0-only or GPL alternatives; [Qt for Python](https://doc.qt.io/qtforpython-6/) and [Qt licensing](https://doc.qt.io/qt-6/licensing.html). Bundled dynamic libraries must remain replaceable; the app does not modify them. Some Qt modules have different licenses, so the release package must contain only needed modules. |

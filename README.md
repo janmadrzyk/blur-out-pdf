@@ -70,7 +70,7 @@ Install [Inno Setup](https://jrsoftware.org/isinfo.php), then run:
 .\packaging\build.ps1
 ```
 
-This produces `dist\BlurOutPDF-Setup-0.1.0.exe`. The installer registers BlurOut PDF as an **Open with** option for PDFs and all supported raster formats without taking over their default viewer. The executable, installer and application window use the transparent icon derived from the supplied draft.
+This produces `dist\BlurOutPDF-Setup-1.0.0.exe`. The installer registers BlurOut PDF as an **Open with** option for PDFs and all supported raster formats without taking over their default viewer. The executable, installer and application window use the transparent icon derived from the supplied draft. The version comes from `src/blurout_pdf/_version.py` and is passed to both Windows build tools. See the [1.0.0 release notes](docs/RELEASE_NOTES_1.0.0.md) and [changelog](CHANGELOG.md).
 
 ## Project layout
 

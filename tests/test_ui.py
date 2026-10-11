@@ -9,9 +9,11 @@ from PySide6.QtCore import QPoint, Qt
 from PySide6.QtCore import QSettings
 from PySide6.QtGui import QPalette
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QInputDialog, QMessageBox
+from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QInputDialog, QLabel, QMessageBox, QPushButton
 
 from blurout_pdf.appearance import apply_theme
+from blurout_pdf.about_dialog import AboutDialog, PROJECT_URL
+from blurout_pdf import __version__
 from blurout_pdf.i18n import translate
 from blurout_pdf.metadata_dialog import MetadataEditorDialog
 from blurout_pdf.window import MainWindow
@@ -67,6 +69,26 @@ def test_themed_file_dialogs_keep_open_and_save_flows(tmp_path: Path, monkeypatc
     assert window.save_as()
     assert result.is_file()
     window.close()
+    app.quit()
+
+
+def test_about_dialog_languages_themes_and_project_link() -> None:
+    app = QApplication.instance() or QApplication([])
+    assert PROJECT_URL == "https://github.com/janmadrzyk/blur-out-pdf"
+    for dark in (False, True):
+        apply_theme(app, dark)
+        for language, version_text, button_text in (
+            ("en", f"Version {__version__}", "Project on GitHub"),
+            ("pl", f"Wersja {__version__}", "Projekt na GitHubie"),
+        ):
+            dialog = AboutDialog(language)
+            assert dialog.findChild(QLabel, "aboutVersion").text() == version_text
+            assert dialog.findChild(QPushButton, "aboutProject").text() == button_text
+            assert "AGPL-3.0-only" in dialog.findChild(QLabel, "aboutLicense").text()
+            assert dialog.palette().color(QPalette.ColorRole.Window).name() == (
+                "#171b22" if dark else "#f3f5f8"
+            )
+            dialog.close()
     app.quit()
 
 

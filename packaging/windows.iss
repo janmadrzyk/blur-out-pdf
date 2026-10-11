@@ -1,5 +1,7 @@
 #define AppName "BlurOut PDF"
-#define AppVersion "0.1.0"
+#ifndef AppVersion
+  #error AppVersion must be passed by the build script
+#endif
 
 [Setup]
 AppId=BlurOutPDF.PDF.Reader

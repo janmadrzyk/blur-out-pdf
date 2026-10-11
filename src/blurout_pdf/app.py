@@ -6,12 +6,14 @@ from pathlib import Path
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
+from . import __version__
 from .window import MainWindow
 
 
 def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("BlurOut PDF")
+    app.setApplicationVersion(__version__)
     app.setOrganizationName("BlurOut PDF")
     app.setWindowIcon(QIcon(str(Path(__file__).resolve().parent / "assets" / "app.png")))
     window = MainWindow(sys.argv[1] if len(sys.argv) > 1 else None)
