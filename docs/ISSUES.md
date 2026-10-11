@@ -86,6 +86,8 @@ This is the editable checklist for preparing the first public release. Work thro
 - A running app is handled predictably, and uninstall removes app-owned files/registrations while preserving user documents.
 - All four paths have recorded manual test results and the installer script is committed.
 
+**Manual check plan:** [Installer lifecycle on clean Windows](INSTALLER_LIFECYCLE_TEST.md). The owner will record the results from a separate Windows environment before this issue is closed.
+
 **Completion record:** _Commit / evidence / date to be added._
 
 ## Issue 5 — Unify and verify release builds
