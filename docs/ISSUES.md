@@ -25,7 +25,7 @@ This is the editable checklist for preparing the first public release. Work thro
 
 ## Issue 2 — Document OCR behavior and third-party licensing
 
-- [ ] **Issue 2 complete**
+- [x] **Issue 2 complete**
 
 **Depends on:** Issue 1.
 
@@ -42,7 +42,7 @@ This is the editable checklist for preparing the first public release. Work thro
 - A reviewed dependency/license inventory exists, required notices are present, and the release packaging includes them where required.
 - No OCR model file is included in source control or the installer.
 
-**Completion record:** _Commit / evidence / date to be added._
+**Completion record:** 2026-10-11. Commit `ebbc891` documents OCR behavior, records the dependency/license inventory and adds license texts and notices to the packaging flow. Evidence: four targeted OCR/search checks passed; a synthetic PDF confirmed the missing-OCR status message while embedded-text search stayed available; a fresh local PyInstaller build and `scripts/prepare_bundle.py` produced the expected notice files with no `.traineddata` or Qt Virtual Keyboard files. The installer script recursively includes this prepared bundle. Final candidate installer contents remain an Issue 5 check. The checklist closure is recorded in the following commit.
 
 ## Issue 3 — Establish version 1.0.0 in the app and documentation
 
