@@ -46,7 +46,7 @@ This is the editable checklist for preparing the first public release. Work thro
 
 ## Issue 3 — Establish version 1.0.0 in the app and documentation
 
-- [ ] **Issue 3 complete**
+- [x] **Issue 3 complete**
 
 **Depends on:** Issues 1 and 2.
 
@@ -63,7 +63,7 @@ This is the editable checklist for preparing the first public release. Work thro
 - The changelog accurately describes the tested release; no `v1.0.0` tag is created before release-candidate acceptance.
 - Relevant automated checks and a manual About-dialog check pass.
 
-**Completion record:** _Commit / evidence / date to be added._
+**Completion record:** 2026-10-11. Commit `6891c4d` establishes one version source, derives Python package metadata and Windows build versions, adds the bilingual About dialog and drafts release documents. Evidence: Python metadata generated as `blurout_pdf-1.0.0`, a local PyInstaller build reported `FileVersion` and `ProductVersion` 1.0.0, and the installer build scripts pass that value to Inno Setup. The full suite passed (42 passed, 1 skipped); the About dialog was visually inspected in Polish and English with light and dark palettes using Windows rendering. No release tag was created. The final installer itself remains to be built and accepted in Issues 5–6. Checklist closure is recorded in the following commit.
 
 ## Issue 4 — Implement installer version lifecycle
 
