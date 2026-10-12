@@ -88,7 +88,7 @@ This is the editable checklist for preparing the first public release. Work thro
 
 **Manual check plan:** [Installer lifecycle on clean Windows](INSTALLER_LIFECYCLE_TEST.md). The owner will record the results from a separate Windows environment before this issue is closed.
 
-**Progress record:** 2026-10-12. The owner reports that upgrading from an older version succeeds and that attempting the older installer after the upgrade displays the newer-version-installed message. Recorded in [the manual lifecycle results](INSTALLER_LIFECYCLE_TEST.md). Fresh install, running-app cancellation, same-version behavior, uninstall, and preservation of settings/installation state after upgrade or refused downgrade still need results before closure.
+**Progress record:** 2026-10-12. The owner reports that upgrading from an older version succeeds and that attempting the older installer after the upgrade displays the newer-version-installed message. A 0.9.0 installation then showed the correct About version and project link, and all synthetic samples opened. The owner also reports uninstalling 1.0.0, though the following setup warned that its install directory already existed; verify remaining files during uninstall testing. See [the manual lifecycle results](INSTALLER_LIFECYCLE_TEST.md). Running-app cancellation, same-version behavior, uninstall cleanup, and preservation of settings/installation state after upgrade or refused downgrade still need results before closure.
 
 ## Issue 5 — Unify and verify release builds
 
