@@ -191,3 +191,21 @@ This is the editable checklist for preparing the first public release. Work thro
 - The behavior is manually checked on Windows.
 
 **Completion record:** _Commit / evidence / date to be added._
+
+## Issue 10 — Default the installer language to English
+
+- [ ] **Issue 10 complete**
+
+**Discovered during:** Manual installer lifecycle checks, 2026-10-12.
+
+**Problem:** The installer should select English by default.
+
+**Work:** Set English as the installer's default language while retaining the option to select Polish.
+
+**Definition of Done:**
+
+- On a Windows environment whose locale is not English, the installer opens in English by default.
+- The user can still select Polish, and all installer messages follow the selected language.
+- The English default and Polish selection are manually checked using the installer.
+
+**Completion record:** _Commit / evidence / date to be added._
