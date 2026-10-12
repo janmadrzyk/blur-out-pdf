@@ -88,7 +88,7 @@ This is the editable checklist for preparing the first public release. Work thro
 
 **Manual check plan:** [Installer lifecycle on clean Windows](INSTALLER_LIFECYCLE_TEST.md). The owner will record the results from a separate Windows environment before this issue is closed.
 
-**Progress record:** 2026-10-12. The owner reports that upgrading from an older version succeeds and that attempting the older installer after the upgrade displays the newer-version-installed message. A 0.9.0 installation showed the correct About version and project link, and all synthetic samples opened. Cancelling the 1.0.0 installer while 0.9.0 had a pending redaction closed setup while leaving the app and selection intact; closing the app then warned about unsaved changes. The owner also reports uninstalling 1.0.0, though the following setup warned that its install directory already existed; verify remaining files during uninstall testing. See [the manual lifecycle results](INSTALLER_LIFECYCLE_TEST.md). Same-version behavior, uninstall cleanup, and preservation of settings/installation state after upgrade or refused downgrade still need results before closure.
+**Progress record:** 2026-10-12. The owner reports that upgrading 0.9.0 to 1.0.0 preserved the chosen language, dark appearance and redaction style, kept one app entry in the same directory, and left samples untouched. Re-running the 1.0.0 installer showed the localized already-installed message. A 0.9.0 installation showed the correct About version and project link, and all synthetic samples opened. Cancelling the 1.0.0 installer while 0.9.0 had a pending redaction closed setup while leaving the app and selection intact; closing the app then warned about unsaved changes. The owner also reports uninstalling 1.0.0, though the following setup warned that its install directory already existed; verify remaining files during uninstall testing. Windows Open with integration was not available and is tracked in Issue 8. See [the manual lifecycle results](INSTALLER_LIFECYCLE_TEST.md). Verify same-version state preservation, uninstall cleanup, and downgrade state preservation before closure.
 
 ## Issue 5 — Unify and verify release builds
 
@@ -154,3 +154,40 @@ This is the editable checklist for preparing the first public release. Work thro
 - This checkbox is marked complete only after publication succeeds and the release URL is recorded below.
 
 **Progress record:** 2026-10-12. The public source repository is available at [janmadrzyk/blur-out-pdf](https://github.com/janmadrzyk/blur-out-pdf), and the updated repository audit is recorded in `REPOSITORY_AUDIT.md`. No 1.0.0 release has been created. Tagging and release publication wait for Issue 6 acceptance and the owner's release approval.
+
+## Issue 8 — Restore Windows Open with integration
+
+- [ ] **Issue 8 complete**
+
+**Discovered during:** Issue 4 manual installation checks, 2026-10-12.
+
+**Problem:** After installing the test version, BlurOut PDF did not appear in Windows **Open with** for PDFs or supported image files, including **Choose another app**. The files can still be opened from inside the application.
+
+**Work:** Diagnose and fix how the installer registers BlurOut PDF for PDFs and supported raster formats. Keep it available as an option without changing the default viewer, and make sure uninstall removes the registrations.
+
+**Definition of Done:**
+
+- After a fresh install, BlurOut PDF appears under **Open with → Choose another app** for PDF and each supported raster extension.
+- Selecting it opens each synthetic sample in BlurOut PDF; existing default applications remain unchanged.
+- After uninstall, BlurOut PDF is removed from those **Open with** lists.
+- Manual results are recorded on the clean Windows environment.
+
+**Completion record:** _Commit / evidence / date to be added._
+
+## Issue 9 — Show the selection marquee in the file picker
+
+- [ ] **Issue 9 complete**
+
+**Discovered during:** Manual file selection, 2026-10-12.
+
+**Problem:** In the “Open document or image” dialog, dragging to select files applies the rectangular selection, but the selection marquee is not visible under the pointer.
+
+**Work:** Make the dragged selection rectangle visible while selecting one or more files in the dialog.
+
+**Definition of Done:**
+
+- A visible marquee follows the pointer while dragging in the file picker.
+- Drag selection still selects the intended files; normal click and multi-select behavior continue to work.
+- The behavior is manually checked on Windows.
+
+**Completion record:** _Commit / evidence / date to be added._
