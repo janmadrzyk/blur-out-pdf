@@ -34,6 +34,18 @@ jobs:
         run: |
           .\packaging\build.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Check installed Open-with registrations and uninstall cleanup
+        shell: pwsh
+        run: |
+          .\.venv\Scripts\python.exe scripts\check_installer_runtime.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload installer runtime logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BlurOutPDF-installer-runtime-logs
+          path: build/installer-runtime/*.log
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         with:
           name: BlurOutPDF-Windows-installer

@@ -79,6 +79,10 @@ Root: HKCU; Subkey: "Software\Classes\Applications\BlurOutPDF.exe\SupportedTypes
 Root: HKCU; Subkey: "Software\Classes\Applications\BlurOutPDF.exe\SupportedTypes"; ValueType: string; ValueName: ".bmp"; ValueData: ""
 Root: HKCU; Subkey: "Software\Classes\Applications\BlurOutPDF.exe\SupportedTypes"; ValueType: string; ValueName: ".webp"; ValueData: ""
 
+[UninstallDelete]
+; Remove a pre-existing install directory only if it is empty; preserve user files.
+Type: dirifempty; Name: "{app}"
+
 [Run]
 Filename: "{app}\BlurOutPDF.exe"; Description: "{cm:LaunchApp}"; Flags: nowait postinstall skipifsilent
 
