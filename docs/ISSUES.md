@@ -90,7 +90,7 @@ This is the editable checklist for preparing the first public release. Work thro
 
 **Progress record:** 2026-10-12. The owner reports that upgrading 0.9.0 to 1.0.0 preserved the chosen language, dark appearance and redaction style, kept one app entry in the same directory, and left samples untouched. Re-running the 1.0.0 installer showed the localized already-installed message; version 1.0.0, settings and the single app entry remained unchanged. A 0.9.0 installation showed the correct About version and project link, and all synthetic samples opened. Cancelling the 1.0.0 installer while 0.9.0 had a pending redaction closed setup while leaving the app and selection intact; closing the app then warned about unsaved changes. Downgrade refusal preserved the single app entry, version and settings. Uninstall removed the app entry and files and preserved external samples but left an empty install directory; Open with cleanup could not be checked because the app was absent from the menu before uninstall. Windows Open with integration was not available and is tracked in Issue 8. Installer language selection follows Windows UI language (English is the fallback) and is described in [the manual lifecycle results](INSTALLER_LIFECYCLE_TEST.md). Remaining uninstall cleanup and lifecycle checks still need results.
 
-**1.0.1 implementation:** Commit `e15c89f` adds removal of the install directory only when empty and a Windows CI install/uninstall probe. The probe pre-creates that directory to reproduce the observed condition and checks actual registration cleanup. CI and owner results for the new candidate are pending; the earlier 1.0.0 observations do not accept 1.0.1.
+**1.0.1 implementation:** Commit `e15c89f` adds removal of the install directory only when empty and a Windows CI install/uninstall probe. The probe pre-creates that directory to reproduce the observed condition and checks actual registration cleanup. [CI run 38279974384](https://github.com/janmadrzyk/blur-out-pdf/actions/runs/38279974384) passed for commit `05b7ad3`; owner lifecycle checks for this candidate remain pending. The earlier 1.0.0 observations do not accept 1.0.1.
 
 ## Issue 5 — Unify and verify release builds
 
@@ -114,7 +114,7 @@ This is the editable checklist for preparing the first public release. Work thro
 
 **Progress record:** 2026-10-12. Commit `6a1e3be` unified local and CI packaging for the earlier 1.0.0 candidate, controlled Windows dependency versions, verified its payload and generated `SHA256.txt`. Local verification passed (48 tests passed, 1 skipped), and GitHub Actions run [38152420931](https://github.com/janmadrzyk/blur-out-pdf/actions/runs/38152420931) passed on `main`. The current candidate is 1.0.1 and needs a fresh CI build, checksum and acceptance of that exact artifact after the Issue 4 fixes.
 
-**1.0.1 local check:** 2026-10-12. The full source suite passed (78 passed, 1 skipped). A local PyInstaller bundle built with executable file/product version 1.0.1; notice preparation and bundled Qt import checks passed. The installer and checksum still require the new CI build.
+**1.0.1 check:** 2026-10-12. The full local source suite passed (78 passed, 1 skipped). A local PyInstaller bundle built with executable file/product version 1.0.1; notice preparation and bundled Qt import checks passed. [CI run 38279974384](https://github.com/janmadrzyk/blur-out-pdf/actions/runs/38279974384) passed its tests, built the 1.0.1 installer, checked installation and uninstall registrations, and retained the installer with `SHA256.txt` as an artifact. Its hash and exact artifact still need the Issue 6 acceptance pass.
 
 ## Issue 6 — Accept the release candidate
 
@@ -157,7 +157,7 @@ This is the editable checklist for preparing the first public release. Work thro
 - The GitHub Release is accessible and its installer can be downloaded and verified against the published checksum.
 - This checkbox is marked complete only after publication succeeds and the release URL is recorded below.
 
-**Progress record:** 2026-10-12. The public source repository is available at [janmadrzyk/blur-out-pdf](https://github.com/janmadrzyk/blur-out-pdf), and the updated repository audit is recorded in `REPOSITORY_AUDIT.md`. The 1.0.0 candidate was not publicly released; 1.0.1 is the current target. Tagging and release publication wait for Issue 6 acceptance and the owner's release approval.
+**Progress record:** 2026-10-12. The public source repository is available at [janmadrzyk/blur-out-pdf](https://github.com/janmadrzyk/blur-out-pdf), and the updated repository audit is recorded in `REPOSITORY_AUDIT.md`. Commit `05b7ad3` published the 1.0.1 source candidate and refreshed the README screenshot from a synthetic PDF. The [Windows build](https://github.com/janmadrzyk/blur-out-pdf/actions/runs/38279974384) passed and retained an installer artifact. The 1.0.0 candidate was not publicly released. Tagging and release publication wait for Issue 6 acceptance and the owner's release approval.
 
 ## Issue 8 — Restore Windows Open with integration
 
@@ -178,7 +178,7 @@ This is the editable checklist for preparing the first public release. Work thro
 
 **Completion record:** _Commit / evidence / date to be added._
 
-**Implementation progress:** 2026-10-12. Commit `93b282a` writes real named empty `REG_SZ` OpenWithProgids values for all eight supported extensions, adds the application display name and launch command, and strengthens release validation. Focused checks passed (27 passed); the full suite passed (78 passed, 1 skipped). Actual Windows registration and Explorer behavior remain to be checked on the 1.0.1 candidate.
+**Implementation progress:** 2026-10-12. Commit `93b282a` writes real named empty `REG_SZ` OpenWithProgids values for all eight supported extensions, adds the application display name and launch command, and strengthens release validation. Focused checks passed (27 passed); the full suite passed (78 passed, 1 skipped). [CI run 38279974384](https://github.com/janmadrzyk/blur-out-pdf/actions/runs/38279974384) passed its installed registry and uninstall checks. Explorer presentation and launching samples remain to be checked manually on the 1.0.1 candidate.
 
 ## Issue 9 — Show the selection marquee in the file picker
 
