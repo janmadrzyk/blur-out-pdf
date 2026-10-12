@@ -5,13 +5,17 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pymupdf
 import pytest
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QPoint, QRect, Qt
 from PySide6.QtCore import QSettings
 from PySide6.QtGui import QPalette
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QInputDialog, QLabel, QMessageBox, QPushButton
+from PySide6.QtWidgets import (
+    QApplication, QDialog, QFileDialog, QInputDialog, QLabel, QListView,
+    QMessageBox, QPushButton, QStyleFactory, QTreeView,
+)
 
-from blurout_pdf.appearance import apply_theme
+from blurout_pdf.appearance import apply_theme, theme_file_dialog
+from blurout_pdf.file_selection_marquee import FileSelectionMarquee
 from blurout_pdf.about_dialog import AboutDialog, PROJECT_URL
 from blurout_pdf import __version__
 from blurout_pdf.i18n import translate
@@ -70,6 +74,117 @@ def test_themed_file_dialogs_keep_open_and_save_flows(tmp_path: Path, monkeypatc
     assert result.is_file()
     window.close()
     app.quit()
+
+
+@pytest.mark.parametrize("dark", (False, True))
+@pytest.mark.parametrize("style_name", ("Fusion", "Windows", "windowsvista", "windows11"))
+def test_file_picker_details_marquee_preserves_selection(
+    tmp_path: Path, dark: bool, style_name: str,
+) -> None:
+    if style_name not in QStyleFactory.keys():
+        pytest.skip(f"{style_name} is unavailable on this platform")
+    app = QApplication.instance() or QApplication([])
+    previous_style = app.style().objectName()
+    app.setStyle(style_name)
+    apply_theme(app, dark)
+    for name in ("alpha.pdf", "beta.pdf", "gamma.pdf"):
+        (tmp_path / name).touch()
+    dialog = QFileDialog(None, "Open document or image", str(tmp_path), "PDF (*.pdf)")
+    dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+    dialog.setFileMode(QFileDialog.FileMode.ExistingFiles)
+    dialog.setViewMode(QFileDialog.ViewMode.Detail)
+    theme_file_dialog(dialog, dark)
+    dialog.resize(820, 540)
+    dialog.show()
+    view = dialog.findChild(QTreeView, "treeView")
+    viewport = view.viewport()
+    try:
+        for _ in range(100):
+            app.processEvents()
+            if view.model().rowCount(view.rootIndex()) == 3:
+                break
+            QTest.qWait(10)
+        assert view.model().rowCount(view.rootIndex()) == 3
+        rows = [view.visualRect(view.model().index(row, 0, view.rootIndex())) for row in range(3)]
+        marquee = view.findChild(FileSelectionMarquee)
+        assert marquee.testAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        theme_file_dialog(dialog, dark)
+        assert len(view.findChildren(FileSelectionMarquee)) == 1
+
+        def selected() -> set[str]:
+            return {index.data() for index in view.selectionModel().selectedRows()}
+
+        start = QPoint(viewport.width() - 40, rows[-1].bottom() + 100)
+        end = QPoint(10, rows[2].center().y())
+        QTest.mousePress(viewport, Qt.MouseButton.LeftButton, pos=start)
+        QTest.mouseMove(viewport, end)
+        app.processEvents()
+        assert marquee.isVisible()
+        assert selected() == {"gamma.pdf"}
+        previous_rectangle = marquee.geometry()
+        end.setY(rows[1].center().y())
+        QTest.mouseMove(viewport, end)
+        app.processEvents()
+        assert marquee.geometry() != previous_rectangle
+        assert selected() == {"beta.pdf", "gamma.pdf"}
+        assert (marquee.geometry().topLeft() - end).manhattanLength() <= 2
+        image = viewport.grab().toImage()
+        border = image.pixelColor(marquee.geometry().topLeft())
+        assert border.name() == ("#6db5f4" if dark else "#2d77bf")
+        QTest.mouseRelease(viewport, Qt.MouseButton.LeftButton, pos=end)
+        assert not marquee.isVisible()
+        assert selected() == {"beta.pdf", "gamma.pdf"}
+
+        QTest.mouseClick(viewport, Qt.MouseButton.LeftButton, pos=rows[0].center())
+        assert selected() == {"alpha.pdf"}
+        QTest.mouseClick(viewport, Qt.MouseButton.LeftButton,
+                         Qt.KeyboardModifier.ControlModifier, pos=rows[2].center())
+        assert selected() == {"alpha.pdf", "gamma.pdf"}
+        QTest.mouseClick(viewport, Qt.MouseButton.LeftButton, pos=rows[2].center())
+        QTest.mouseClick(viewport, Qt.MouseButton.LeftButton,
+                         Qt.KeyboardModifier.ShiftModifier, pos=rows[1].center())
+        assert selected() == {"beta.pdf", "gamma.pdf"}
+        assert not marquee.isVisible()
+
+        QTest.mousePress(viewport, Qt.MouseButton.LeftButton, pos=start)
+        QTest.mouseMove(viewport, end)
+        assert marquee.isVisible()
+        dialog.setViewMode(QFileDialog.ViewMode.List)
+        app.processEvents()
+        assert not marquee.isVisible()
+        QTest.mouseRelease(viewport, Qt.MouseButton.LeftButton, pos=end)
+        list_view = dialog.findChild(QListView, "listView")
+        assert list_view.isSelectionRectVisible()
+        list_view.clearSelection()
+        list_viewport = list_view.viewport()
+        list_rows = [list_view.visualRect(list_view.model().index(row, 0, list_view.rootIndex()))
+                     for row in range(3)]
+        list_start = QPoint(list_viewport.width() - 40, list_rows[-1].bottom() + 100)
+        list_end = QPoint(10, list_rows[0].center().y())
+        sample = QRect(0, list_rows[-1].bottom() + 10, list_viewport.width(), 80)
+        baseline = list_viewport.grab().toImage().copy(sample)
+        QTest.mousePress(list_viewport, Qt.MouseButton.LeftButton, pos=list_start)
+        QTest.mouseMove(list_viewport, list_end)
+        app.processEvents()
+        assert {index.data() for index in list_view.selectionModel().selectedRows()} == {
+            "alpha.pdf", "beta.pdf", "gamma.pdf",
+        }
+        assert list_viewport.grab().toImage().copy(sample) != baseline
+        QTest.mouseRelease(list_viewport, Qt.MouseButton.LeftButton, pos=list_end)
+        assert list_viewport.grab().toImage().copy(sample) == baseline
+
+        dialog.setViewMode(QFileDialog.ViewMode.Detail)
+        app.processEvents()
+        QTest.mousePress(viewport, Qt.MouseButton.LeftButton, pos=start)
+        QTest.mouseMove(viewport, end)
+        assert marquee.isVisible()
+        QTest.keyClick(viewport, Qt.Key.Key_Escape)
+        assert not marquee.isVisible()
+        assert not dialog.isVisible()
+        QTest.mouseRelease(viewport, Qt.MouseButton.LeftButton, pos=end)
+    finally:
+        dialog.close()
+        app.setStyle(previous_style)
 
 
 def test_about_dialog_languages_themes_and_project_link() -> None:

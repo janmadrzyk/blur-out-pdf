@@ -3,7 +3,9 @@
 from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QColor, QIcon, QPalette, QPixmap
 from PySide6.QtSvg import QSvgRenderer
-from PySide6.QtWidgets import QApplication, QFileDialog, QToolButton
+from PySide6.QtWidgets import QApplication, QFileDialog, QListView, QToolButton, QTreeView
+
+from .file_selection_marquee import FileSelectionMarquee
 
 
 PATHS = {
@@ -44,7 +46,17 @@ def icon(name: str, color: str = "#293241") -> QIcon:
 
 
 def theme_file_dialog(dialog: QFileDialog, dark: bool) -> None:
-    """Use readable navigation icons in Qt's themed file chooser."""
+    """Use readable icons and selection feedback in Qt's themed file chooser."""
+    list_view = dialog.findChild(QListView, "listView")
+    if list_view is not None and dialog.fileMode() == QFileDialog.FileMode.ExistingFiles:
+        list_view.setSelectionRectVisible(True)
+    view = dialog.findChild(QTreeView, "treeView")
+    if view is not None and dialog.fileMode() == QFileDialog.FileMode.ExistingFiles:
+        marquee = view.findChild(FileSelectionMarquee)
+        if marquee is None:
+            FileSelectionMarquee(view, dark)
+        else:
+            marquee.set_dark(dark)
     color = "#edf1f7" if dark else "#1d2633"
     for object_name, icon_name in (
         ("backButton", "prev"), ("forwardButton", "next"),
