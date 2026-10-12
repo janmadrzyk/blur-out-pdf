@@ -88,7 +88,7 @@ This is the editable checklist for preparing the first public release. Work thro
 
 **Manual check plan:** [Installer lifecycle on clean Windows](INSTALLER_LIFECYCLE_TEST.md). The owner will record the results from a separate Windows environment before this issue is closed.
 
-**Completion record:** _Commit / evidence / date to be added._
+**Progress record:** 2026-10-12. The owner reports that upgrading from an older version succeeds and that attempting the older installer after the upgrade displays the newer-version-installed message. Recorded in [the manual lifecycle results](INSTALLER_LIFECYCLE_TEST.md). Fresh install, running-app cancellation, same-version behavior, uninstall, and preservation of settings/installation state after upgrade or refused downgrade still need results before closure.
 
 ## Issue 5 — Unify and verify release builds
 
@@ -110,7 +110,7 @@ This is the editable checklist for preparing the first public release. Work thro
 - The built package contains the required notices, icon and supported file integrations, but no OCR models or private fixtures.
 - The candidate installer and its checksum are retained together for the acceptance pass.
 
-**Completion record:** _Commit / evidence / date to be added._
+**Progress record:** 2026-10-12. Commit `6a1e3be` unifies local and CI packaging, controls the Windows dependency versions, verifies the release payload and generates `SHA256.txt`. Local verification passed (48 tests passed, 1 skipped; installer payload and checksum verified). GitHub Actions run [38152420931](https://github.com/janmadrzyk/blur-out-pdf/actions/runs/38152420931) passed on `main` and retained the Windows installer artifact. Keep Issue 5 open until its declared dependency, Issue 4, is complete; then confirm the CI artifact is the candidate used for Issue 6.
 
 ## Issue 6 — Accept the release candidate
 
@@ -153,4 +153,4 @@ This is the editable checklist for preparing the first public release. Work thro
 - The GitHub Release is accessible and its installer can be downloaded and verified against the published checksum.
 - This checkbox is marked complete only after publication succeeds and the release URL is recorded below.
 
-**Completion record:** _Release URL / commit / evidence / date to be added._
+**Progress record:** 2026-10-12. The public source repository is available at [janmadrzyk/blur-out-pdf](https://github.com/janmadrzyk/blur-out-pdf), and the updated repository audit is recorded in `REPOSITORY_AUDIT.md`. No 1.0.0 release has been created. Tagging and release publication wait for Issue 6 acceptance and the owner's release approval.

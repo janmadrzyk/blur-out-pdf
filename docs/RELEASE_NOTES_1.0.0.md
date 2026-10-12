@@ -6,4 +6,4 @@ The black cover is the safer choice for sensitive content. Blurred covers can re
 
 Embedded PDF text search works without OCR. Search on scanned pages requires compatible OCR language data already available on the computer; the installer does not provide or download models.
 
-The Windows installer is still a release candidate. Its lifecycle and clean-system acceptance checks are tracked in [the release checklist](ISSUES.md). No public 1.0.0 release or tag exists yet. The About dialog links to [the planned GitHub repository](https://github.com/janmadrzyk/blur-out-pdf), which will become available when the repository is published.
+The Windows installer is still a release candidate. Its lifecycle and clean-system acceptance checks are tracked in [the release checklist](ISSUES.md). The [public GitHub repository](https://github.com/janmadrzyk/blur-out-pdf) is available, but no public 1.0.0 release or tag exists yet.
