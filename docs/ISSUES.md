@@ -88,7 +88,7 @@ This is the editable checklist for preparing the first public release. Work thro
 
 **Manual check plan:** [Installer lifecycle on clean Windows](INSTALLER_LIFECYCLE_TEST.md). The owner will record the results from a separate Windows environment before this issue is closed.
 
-**Progress record:** 2026-10-12. The owner reports that upgrading 0.9.0 to 1.0.0 preserved the chosen language, dark appearance and redaction style, kept one app entry in the same directory, and left samples untouched. Re-running the 1.0.0 installer showed the localized already-installed message. A 0.9.0 installation showed the correct About version and project link, and all synthetic samples opened. Cancelling the 1.0.0 installer while 0.9.0 had a pending redaction closed setup while leaving the app and selection intact; closing the app then warned about unsaved changes. Downgrade refusal preserved the single app entry, version and settings. Uninstall removed the app entry and files and preserved external samples but left an empty install directory; Open with cleanup could not be checked because the app was absent from the menu before uninstall. Windows Open with integration was not available and is tracked in Issue 8. See [the manual lifecycle results](INSTALLER_LIFECYCLE_TEST.md). Verify same-version state preservation and the remaining uninstall and language checks before closure.
+**Progress record:** 2026-10-12. The owner reports that upgrading 0.9.0 to 1.0.0 preserved the chosen language, dark appearance and redaction style, kept one app entry in the same directory, and left samples untouched. Re-running the 1.0.0 installer showed the localized already-installed message; version 1.0.0, settings and the single app entry remained unchanged. A 0.9.0 installation showed the correct About version and project link, and all synthetic samples opened. Cancelling the 1.0.0 installer while 0.9.0 had a pending redaction closed setup while leaving the app and selection intact; closing the app then warned about unsaved changes. Downgrade refusal preserved the single app entry, version and settings. Uninstall removed the app entry and files and preserved external samples but left an empty install directory; Open with cleanup could not be checked because the app was absent from the menu before uninstall. Windows Open with integration was not available and is tracked in Issue 8. Installer language selection follows Windows UI language (English is the fallback) and is described in [the manual lifecycle results](INSTALLER_LIFECYCLE_TEST.md). Remaining uninstall cleanup and lifecycle checks still need results.
 
 ## Issue 5 — Unify and verify release builds
 
@@ -133,7 +133,6 @@ This is the editable checklist for preparing the first public release. Work thro
 - The candidate is explicitly accepted for publication; its checksum is final.
 
 **Completion record:** _Commit / evidence / date to be added._
-
 ## Issue 7 — Publish version 1.0.0 on GitHub
 
 - [ ] **Issue 7 complete**
@@ -189,23 +188,5 @@ This is the editable checklist for preparing the first public release. Work thro
 - A visible marquee follows the pointer while dragging in the file picker.
 - Drag selection still selects the intended files; normal click and multi-select behavior continue to work.
 - The behavior is manually checked on Windows.
-
-**Completion record:** _Commit / evidence / date to be added._
-
-## Issue 10 — Default the installer language to English
-
-- [ ] **Issue 10 complete**
-
-**Discovered during:** Manual installer lifecycle checks, 2026-10-12.
-
-**Problem:** The installer should select English by default.
-
-**Work:** Set English as the installer's default language while retaining the option to select Polish.
-
-**Definition of Done:**
-
-- On a Windows environment whose locale is not English, the installer opens in English by default.
-- The user can still select Polish, and all installer messages follow the selected language.
-- The English default and Polish selection are manually checked using the installer.
 
 **Completion record:** _Commit / evidence / date to be added._
