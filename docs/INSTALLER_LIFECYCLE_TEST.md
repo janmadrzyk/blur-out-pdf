@@ -37,12 +37,14 @@ Use the exact CI-built `BlurOutPDF-Setup-1.0.1.exe` and verify its checksum befo
 
 | Path | Steps and expected result | Result |
 | --- | --- | --- |
-| Fresh install and Open with | Install 1.0.1 on a clean snapshot. Confirm one Installed apps entry and About version 1.0.1. Open each synthetic PDF/raster sample through **Open with → Choose another app → BlurOut PDF**; existing default viewers remain selected. | Pending. |
+| Fresh install and Open with | Install 1.0.1 on a clean snapshot. Confirm one Installed apps entry and About version 1.0.1. Open each synthetic PDF/raster sample through **Open with → Choose another app → BlurOut PDF**; existing default viewers remain selected. | Partially passed — owner reports that **Open with** works on Windows. The displayed `BlurOutPDF-Setup-1.0.1.exe` SmartScreen prompt identifies the publisher as unknown. Per-format results, unchanged defaults, environment, and installer checksum have not yet been recorded (2026-10-12). |
 | Running app | Open a synthetic sample with a pending redaction in the predecessor app. Start 1.0.1 setup and cancel the close-app prompt; the app, version and pending selection remain available. | Pending. |
 | Upgrade from 0.9.0 and 1.0.0 | On separate snapshots, install each predecessor, choose language, appearance and cover style, then install 1.0.1. Confirm one app entry, About version 1.0.1, preserved settings, untouched samples and working Open with entries. | Pending. |
 | Same version | Run 1.0.1 setup again. Confirm the already-installed message, preserved settings and one app entry. | Pending. |
 | Downgrade | Run each TEST-ONLY predecessor installer after 1.0.1 is installed. Confirm refusal while version 1.0.1 and settings remain intact. | Pending. |
-| File picker selection | In the 1.0.1 app, choose **Open**, drag across synthetic files and confirm a visible selection marquee, the intended selection, and normal click/multi-select behavior. | Pending. |
+| File picker selection | In the 1.0.1 app, choose **Open**, drag across synthetic files and confirm a visible selection marquee, the intended selection, and normal click/multi-select behavior. | Partially passed — owner reports that the lasso works on Windows (2026-10-12). |
 | Uninstall | Uninstall 1.0.1. Confirm the app entry and app-owned files/registrations disappear, including all Open with entries. Confirm external samples remain. Check whether the install directory is removed or remains empty and record the outcome. | Pending. |
 
 Complete these observations and the application acceptance checks in Issue 6 before tagging or publishing the candidate.
+
+The owner reports that the 1.0.1 installer displayed the standard Windows Defender SmartScreen “unknown publisher” warning before setup. This is expected for the current unsigned EXE; it is not evidence that Microsoft has identified the installer as malicious. See Issue 6 for the signing and distribution decision.

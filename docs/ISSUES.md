@@ -159,6 +159,8 @@ This is the editable checklist for preparing the first public release. Work thro
 
 **Progress record:** 2026-10-12. The public source repository is available at [janmadrzyk/blur-out-pdf](https://github.com/janmadrzyk/blur-out-pdf), and the updated repository audit is recorded in `REPOSITORY_AUDIT.md`. Commit `05b7ad3` published the 1.0.1 source candidate and refreshed the README screenshot from a synthetic PDF. The [Windows build](https://github.com/janmadrzyk/blur-out-pdf/actions/runs/38279974384) passed and retained an installer artifact. The 1.0.0 candidate was not publicly released. Tagging and release publication wait for Issue 6 acceptance and the owner's release approval.
 
+**Installer trust:** The owner reports a Windows Defender SmartScreen “unknown publisher” warning for `BlurOutPDF-Setup-1.0.1.exe` (2026-10-12). The installer is currently unsigned. Decide whether to distribute unsigned builds with a trust/hash verification note, pursue Authenticode signing, or distribute through the Microsoft Store before publication.
+
 ## Issue 8 — Restore Windows Open with integration
 
 - [ ] **Issue 8 complete**
@@ -178,7 +180,7 @@ This is the editable checklist for preparing the first public release. Work thro
 
 **Completion record:** _Commit / evidence / date to be added._
 
-**Implementation progress:** 2026-10-12. Commit `93b282a` writes real named empty `REG_SZ` OpenWithProgids values for all eight supported extensions, adds the application display name and launch command, and strengthens release validation. Focused checks passed (27 passed); the full suite passed (78 passed, 1 skipped). [CI run 38279974384](https://github.com/janmadrzyk/blur-out-pdf/actions/runs/38279974384) passed its installed registry and uninstall checks. Explorer presentation and launching samples remain to be checked manually on the 1.0.1 candidate.
+**Implementation progress:** 2026-10-12. Commit `93b282a` writes real named empty `REG_SZ` OpenWithProgids values for all eight supported extensions, adds the application display name and launch command, and strengthens release validation. Focused checks passed (27 passed); the full suite passed (78 passed, 1 skipped). [CI run 38279974384](https://github.com/janmadrzyk/blur-out-pdf/actions/runs/38279974384) passed its installed registry and uninstall checks. The owner reports that **Open with** works on 1.0.1; per-format results, preservation of default apps and uninstall cleanup remain to be confirmed on Windows.
 
 ## Issue 9 — Show the selection marquee in the file picker
 
@@ -198,4 +200,4 @@ This is the editable checklist for preparing the first public release. Work thro
 
 **Completion record:** _Commit / evidence / date to be added._
 
-**Implementation progress:** 2026-10-12. Commit `b03777a` makes the selection marquee visible in both file picker views. Native Windows rendering showed the rectangle in light and dark themes; UI checks passed (17 passed), and the full suite passed (78 passed, 1 skipped). Owner verification of the 1.0.1 candidate remains pending.
+**Implementation progress:** 2026-10-12. Commit `b03777a` makes the selection marquee visible in both file picker views. Native Windows rendering showed the rectangle in light and dark themes; UI checks passed (17 passed), and the full suite passed (78 passed, 1 skipped). The owner reports that the lasso works in the 1.0.1 Windows app; the result is recorded in [the lifecycle check](INSTALLER_LIFECYCLE_TEST.md).
