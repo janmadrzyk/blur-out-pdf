@@ -1,10 +1,10 @@
 # Installer lifecycle check on a clean Windows machine
 
-The `packaging/build_lifecycle_fixtures.ps1` script builds test-only `0.9.0` and `1.0.0` installers from the current source, alongside the real candidate identified by `src/blurout_pdf/_version.py` (currently `1.0.1`). These are synthetic predecessors for checking installer behavior, not historical releases or copies of earlier candidate binaries. The script prints a folder containing all three installers, `SHA256.txt`, and synthetic `sample.pdf`, `sample.jpg`, `sample.jpeg`, `sample.png`, `sample.tif`, `sample.tiff`, `sample.bmp`, and `sample.webp`. Never publish the `TEST-ONLY` installers.
+The `packaging/build_lifecycle_fixtures.ps1` script can build test-only `0.9.0` and `1.0.0` installers from the current source, alongside the release identified by `src/blurout_pdf/_version.py`. These are synthetic predecessors for checking installer behavior, not historical releases or copies of earlier candidate binaries. The script prints a folder containing all three installers, `SHA256.txt`, and synthetic `sample.pdf`, `sample.jpg`, `sample.jpeg`, `sample.png`, `sample.tif`, `sample.tiff`, `sample.bmp`, and `sample.webp`. Never publish the `TEST-ONLY` installers.
 
 The installer lists English first and Polish second in `packaging/windows.iss`. On a first install, it uses Inno Setup's default language detection, which follows the Windows UI language; if that language is unsupported, English is selected as the first listed language. A language selection dialog lets the user override the detected language. Thus Polish Windows selects Polish, while English or unsupported-language Windows selects English on first install. Inno Setup's default `UsePreviousLanguage=yes` setting means later runs may use the language selected during the previous installation. See [Inno Setup's language selection rules](https://jrsoftware.org/ishelp/topic_languagessection.htm) and [UsePreviousLanguage](https://jrsoftware.org/ishelp/topic_setup_usepreviouslanguage.htm).
 
-Run the following from the project root after building the current candidate installer:
+Run the following from the project root after building the release installer:
 
 ```powershell
 .\packaging\build_lifecycle_fixtures.ps1 -InnoCompiler (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe")
@@ -14,7 +14,7 @@ Copy the files from the printed `installers` folder to a clean Windows VM or sna
 
 ## Earlier 1.0.0 candidate results
 
-These observations apply to the previous candidate. They do not accept the new 1.0.1 artifact.
+These observations apply to the previous 1.0.0 candidate; no public 1.0.0 release was made.
 
 | Path | Steps | Expected result | Result |
 | --- | --- | --- | --- |
@@ -27,24 +27,24 @@ These observations apply to the previous candidate. They do not accept the new 1
 
 The same-version and downgrade messages were not repeated interactively in both languages. Source review of `packaging/windows.iss` confirms that both messages have English and Polish translations and that the existing/new versions are passed into the corresponding placeholders. The owner accepted this code-level verification instead of another UI run (2026-10-12). The fixture installers use the same application ID and per-user scope as the release candidate, so these paths otherwise exercise the real version gate and upgrade logic.
 
-Do not mark Issue 4 complete until all rows have recorded observations from the clean environment. Any failure needs a fix, a new installer build, and a repeat of the affected rows.
+Normally, do not mark Issue 4 complete until each lifecycle row has a clean-environment result. For 1.0.1, the owner explicitly waived repeating the already-passed upgrade, same-version, downgrade and running-app paths; this release records that exception below.
 
 Owner-reported results above are recorded separately from unverified expectations. The 0.9.0 app launch, About version/link, opening each sample, running-app cancellation, upgrade with preference preservation, the same-version message, and downgrade refusal with preserved version/preferences are confirmed. Uninstall removed the app entry and files but left an empty install directory; Open with cleanup could not be checked because the app was absent from the menu beforehand. Windows Open with integration failed and is tracked in Issue 8. Remaining lifecycle checks still need a result.
 
-## Current 1.0.1 candidate checks
+## 1.0.1 release verification
 
-Use the exact CI-built `BlurOutPDF-Setup-1.0.1.exe` and verify its checksum before running these checks. Record the candidate commit, CI run, hash and clean Windows environment with the results. Test-only 1.0.0 fixtures exercise the version gate; also check upgrade from an actual earlier 1.0.0 candidate installation when one is available.
+The release installer was built by CI from commit `824afee` in run [38282940190](https://github.com/janmadrzyk/blur-out-pdf/actions/runs/38282940190). The owner accepted the 1.0.1 fixes and waived repeating the lifecycle cases already verified on 1.0.0.
 
 | Path | Steps and expected result | Result |
 | --- | --- | --- |
-| Fresh install and Open with | Install 1.0.1 on a clean snapshot. Confirm one Installed apps entry and About version 1.0.1. Open each synthetic PDF/raster sample through **Open with → Choose another app → BlurOut PDF**; existing default viewers remain selected. | Partially passed — owner reports that **Open with** works on Windows. The displayed `BlurOutPDF-Setup-1.0.1.exe` SmartScreen prompt identifies the publisher as unknown. Per-format results, unchanged defaults, environment, and installer checksum have not yet been recorded (2026-10-12). |
-| Running app | Open a synthetic sample with a pending redaction in the predecessor app. Start 1.0.1 setup and cancel the close-app prompt; the app, version and pending selection remain available. | Pending. |
-| Upgrade from 0.9.0 and 1.0.0 | On separate snapshots, install each predecessor, choose language, appearance and cover style, then install 1.0.1. Confirm one app entry, About version 1.0.1, preserved settings, untouched samples and working Open with entries. | Pending. |
-| Same version | Run 1.0.1 setup again. Confirm the already-installed message, preserved settings and one app entry. | Pending. |
-| Downgrade | Run each TEST-ONLY predecessor installer after 1.0.1 is installed. Confirm refusal while version 1.0.1 and settings remain intact. | Pending. |
-| File picker selection | In the 1.0.1 app, choose **Open**, drag across synthetic files and confirm a visible selection marquee, the intended selection, and normal click/multi-select behavior. | Partially passed — owner reports that the lasso works on Windows (2026-10-12). |
-| Uninstall | Uninstall 1.0.1. Confirm the app entry and app-owned files/registrations disappear, including all Open with entries. Confirm external samples remain. Check whether the install directory is removed or remains empty and record the outcome. | Pending. |
+| Fresh install and Open with | Install 1.0.1 on a clean snapshot. Confirm one Installed apps entry and About version 1.0.1. Open each synthetic PDF/raster sample through **Open with → Choose another app → BlurOut PDF**; existing default viewers remain selected. | Passed — CI run 38282940190 built commit `824afee` and verified installation and all eight registry registrations while preserving seeded default associations. Owner confirms **Open with** works on Windows. SmartScreen showed an unknown-publisher warning because the installer is unsigned (2026-10-12). |
+| Running app | Open a synthetic sample with a pending redaction in the predecessor app. Start 1.0.1 setup and cancel the close-app prompt; the app, version and pending selection remain available. | Not repeated on 1.0.1 by owner decision; the same-version installer behavior was manually checked on 1.0.0 and passed. |
+| Upgrade from 0.9.0 and 1.0.0 | On separate snapshots, install each predecessor, choose language, appearance and cover style, then install 1.0.1. Confirm one app entry, About version 1.0.1, preserved settings, untouched samples and working Open with entries. | Not repeated on 1.0.1 by owner decision. The 0.9.0 → 1.0.0 upgrade and preservation of settings were manually checked and passed; the 1.0.1 installer adds the verified file registrations. |
+| Same version | Run 1.0.1 setup again. Confirm the already-installed message, preserved settings and one app entry. | Not repeated on 1.0.1 by owner decision; the same-version path was manually checked on 1.0.0 and passed. |
+| Downgrade | Run each TEST-ONLY predecessor installer after 1.0.1 is installed. Confirm refusal while version 1.0.1 and settings remain intact. | Not repeated on 1.0.1 by owner decision; downgrade refusal and preservation were manually checked on 1.0.0 and passed. |
+| File picker selection | In the 1.0.1 app, choose **Open**, drag across synthetic files and confirm a visible selection marquee, the intended selection, and normal click/multi-select behavior. | Passed — owner confirms the lasso works in the 1.0.1 Windows app (2026-10-12). |
+| Uninstall | Uninstall 1.0.1. Confirm the app entry and app-owned files/registrations disappear, including all Open with entries. Confirm external samples remain. Check whether the install directory is removed or remains empty and record the outcome. | Passed in CI run 38282940190: the runtime probe installed and uninstalled the candidate, verified application registrations were removed and foreign default associations were preserved. The owner had previously verified that uninstall preserves external samples on 1.0.0. |
 
-Complete these observations and the application acceptance checks in Issue 6 before tagging or publishing the candidate.
+The owner chose not to repeat the same-version, downgrade, running-app and upgrade tests on 1.0.1, relying on the previously successful 1.0.0 manual checks. The owner also chose to publish unsigned, accepting the SmartScreen unknown-publisher warning. These decisions apply to this release only.
 
 The owner reports that the 1.0.1 installer displayed the standard Windows Defender SmartScreen “unknown publisher” warning before setup. This is expected for the current unsigned EXE; it is not evidence that Microsoft has identified the installer as malicious. See Issue 6 for the signing and distribution decision.

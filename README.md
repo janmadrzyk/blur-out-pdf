@@ -73,7 +73,9 @@ py -3.12 -m venv .venv
 
 If Inno Setup is installed in a different location, pass its compiler path with `-InnoCompiler`. The build produces `dist\BlurOutPDF-Setup-1.0.1.exe` and `dist\SHA256.txt`; keep these two files together. Verify a copied installer with `Get-FileHash dist\BlurOutPDF-Setup-1.0.1.exe -Algorithm SHA256` and compare its hash with `dist\SHA256.txt`. The GitHub Windows workflow runs the same tests and build script and retains both files as one artifact.
 
-The installer registers BlurOut PDF as an **Open with** option for PDFs and all supported raster formats without taking over their default viewer. The executable, installer and application window use the transparent icon derived from the supplied draft. The version comes from `src/blurout_pdf/_version.py` and is passed to both Windows build tools. See the [1.0.1 release notes](docs/RELEASE_NOTES_1.0.1.md) and [changelog](CHANGELOG.md). Version 1.0.1 is the current candidate so installations of the earlier 1.0.0 candidate can upgrade; 1.0.0 was not publicly released. The new installer still requires clean-Windows acceptance before publication.
+The installer is not digitally signed. Windows may display a Microsoft Defender SmartScreen warning that the publisher is unknown. Before running it, download the installer and its checksum from the official [GitHub release](https://github.com/janmadrzyk/blur-out-pdf/releases/latest) and verify that the SHA-256 values match.
+
+The installer registers BlurOut PDF as an **Open with** option for PDFs and all supported raster formats without taking over their default viewer. The executable, installer and application window use the transparent icon derived from the supplied draft. The version comes from `src/blurout_pdf/_version.py` and is passed to both Windows build tools. See the [1.0.1 release notes](docs/RELEASE_NOTES_1.0.1.md) and [changelog](CHANGELOG.md). Version 1.0.1 is the first public release; the 1.0.0 candidate was not publicly released.
 
 ## Project layout
 

@@ -67,7 +67,7 @@ This is the editable checklist for preparing the first public release. Work thro
 
 ## Issue 4 — Implement installer version lifecycle
 
-- [ ] **Issue 4 complete**
+- [x] **Issue 4 complete**
 
 **Depends on:** Issue 3.
 
@@ -86,15 +86,17 @@ This is the editable checklist for preparing the first public release. Work thro
 - A running app is handled predictably, and uninstall removes app-owned files/registrations while preserving user documents.
 - All four paths have recorded manual test results and the installer script is committed.
 
-**Manual check plan:** [Installer lifecycle on clean Windows](INSTALLER_LIFECYCLE_TEST.md). The owner will record the results from a separate Windows environment before this issue is closed.
+**Manual check plan:** [Installer lifecycle on clean Windows](INSTALLER_LIFECYCLE_TEST.md). The previous 1.0.0 results and this release's 1.0.1 CI and owner checks are recorded there; the owner waived repeating specified cases on 1.0.1.
 
-**Progress record:** 2026-10-12. The owner reports that upgrading 0.9.0 to 1.0.0 preserved the chosen language, dark appearance and redaction style, kept one app entry in the same directory, and left samples untouched. Re-running the 1.0.0 installer showed the localized already-installed message; version 1.0.0, settings and the single app entry remained unchanged. A 0.9.0 installation showed the correct About version and project link, and all synthetic samples opened. Cancelling the 1.0.0 installer while 0.9.0 had a pending redaction closed setup while leaving the app and selection intact; closing the app then warned about unsaved changes. Downgrade refusal preserved the single app entry, version and settings. Uninstall removed the app entry and files and preserved external samples but left an empty install directory; Open with cleanup could not be checked because the app was absent from the menu before uninstall. Windows Open with integration was not available and is tracked in Issue 8. Installer language selection follows Windows UI language (English is the fallback) and is described in [the manual lifecycle results](INSTALLER_LIFECYCLE_TEST.md). Remaining uninstall cleanup and lifecycle checks still need results.
+For 1.0.1, the owner explicitly waived repeating the already-passed upgrade, same-version, downgrade and running-app paths; the waiver and 1.0.1 automation/manual results are documented in [the lifecycle record](INSTALLER_LIFECYCLE_TEST.md).
 
-**1.0.1 implementation:** Commit `e15c89f` adds removal of the install directory only when empty and a Windows CI install/uninstall probe. The probe pre-creates that directory to reproduce the observed condition and checks actual registration cleanup. [CI run 38279974384](https://github.com/janmadrzyk/blur-out-pdf/actions/runs/38279974384) passed for commit `05b7ad3`; owner lifecycle checks for this candidate remain pending. The earlier 1.0.0 observations do not accept 1.0.1.
+**Progress record:** 2026-10-12. The owner reports that upgrading 0.9.0 to 1.0.0 preserved the chosen language, dark appearance and redaction style, kept one app entry in the same directory, and left samples untouched. Re-running the 1.0.0 installer showed the localized already-installed message; version 1.0.0, settings and the single app entry remained unchanged. A 0.9.0 installation showed the correct About version and project link, and all synthetic samples opened. Cancelling the 1.0.0 installer while 0.9.0 had a pending redaction closed setup while leaving the app and selection intact; closing the app then warned about unsaved changes. Downgrade refusal preserved the single app entry, version and settings. Uninstall removed the app entry and files and preserved external samples but left an empty install directory; Open with cleanup could not be checked because the app was absent from the menu before uninstall. Windows Open with integration was not available and is tracked in Issue 8. Installer language selection follows Windows UI language (English is the fallback) and is described in [the manual lifecycle results](INSTALLER_LIFECYCLE_TEST.md). The empty-directory cleanup and Open with integration were implemented and checked for 1.0.1 below.
+
+**Completion record:** 2026-10-12. The owner manually verified the 0.9.0 → 1.0.0 upgrade with preferences preserved, same-version behavior, downgrade refusal, running-app cancellation, uninstall and preserved external samples. For 1.0.1 the owner confirmed Open with and the selection lasso work. [CI run 38282940190](https://github.com/janmadrzyk/blur-out-pdf/actions/runs/38282940190) built commit `824afee`, installed and uninstalled the candidate, checked all eight Open with registrations and confirmed foreign default associations were preserved. The CI probe also verified cleanup when the install directory already existed. By owner decision, upgrade, same-version, downgrade and running-app scenarios were not repeated on 1.0.1; the earlier successful manual results are relied on for those paths.
 
 ## Issue 5 — Unify and verify release builds
 
-- [ ] **Issue 5 complete**
+- [x] **Issue 5 complete**
 
 **Depends on:** Issues 2, 3 and 4.
 
@@ -112,9 +114,9 @@ This is the editable checklist for preparing the first public release. Work thro
 - The built package contains the required notices, icon and supported file integrations, but no OCR models or private fixtures.
 - The candidate installer and its checksum are retained together for the acceptance pass.
 
-**Progress record:** 2026-10-12. Commit `6a1e3be` unified local and CI packaging for the earlier 1.0.0 candidate, controlled Windows dependency versions, verified its payload and generated `SHA256.txt`. Local verification passed (48 tests passed, 1 skipped), and GitHub Actions run [38152420931](https://github.com/janmadrzyk/blur-out-pdf/actions/runs/38152420931) passed on `main`. The current candidate is 1.0.1 and needs a fresh CI build, checksum and acceptance of that exact artifact after the Issue 4 fixes.
+**Progress record:** 2026-10-12. Commit `6a1e3be` unified local and CI packaging for the earlier 1.0.0 candidate, controlled Windows dependency versions, verified its payload and generated `SHA256.txt`. Local verification passed (48 tests passed, 1 skipped), and GitHub Actions run [38152420931](https://github.com/janmadrzyk/blur-out-pdf/actions/runs/38152420931) passed on `main`.
 
-**1.0.1 check:** 2026-10-12. The full local source suite passed (78 passed, 1 skipped). A local PyInstaller bundle built with executable file/product version 1.0.1; notice preparation and bundled Qt import checks passed. [CI run 38279974384](https://github.com/janmadrzyk/blur-out-pdf/actions/runs/38279974384) passed its tests, built the 1.0.1 installer, checked installation and uninstall registrations, and retained the installer with `SHA256.txt` as an artifact. Its hash and exact artifact still need the Issue 6 acceptance pass.
+**Completion record:** 2026-10-12. The full local source suite passed (78 passed, 1 skipped); the local PyInstaller build reported file/product version 1.0.1, and bundle notices and Qt imports passed. [CI run 38282940190](https://github.com/janmadrzyk/blur-out-pdf/actions/runs/38282940190) passed its full test/build/install probe on commit `824afee` and retained `BlurOutPDF-Setup-1.0.1.exe` with `SHA256.txt` as an artifact.
 
 ## Issue 6 — Accept the release candidate
 
@@ -136,7 +138,7 @@ This is the editable checklist for preparing the first public release. Work thro
 - The README and changelog match observed behavior, including OCR limits and the privacy caveat for blurred covers.
 - The candidate is explicitly accepted for publication; its checksum is final.
 
-**Completion record:** _Commit / evidence / date to be added._
+**Acceptance note:** 2026-10-12. The owner accepted version 1.0.1 for publication, confirmed the two reported fixes in the Windows app and explicitly waived repeating the prior successful upgrade, same-version, downgrade and running-app checks on this patch release. Automated tests and the installer install/registration/uninstall probe passed on release commit `824afee`. The installer is unsigned; the owner accepts the observed SmartScreen unknown-publisher warning. The exact asset checksum must still be recorded before Issue 6 is closed.
 
 ## Issue 7 — Publish version 1.0.1 on GitHub
 
@@ -157,13 +159,13 @@ This is the editable checklist for preparing the first public release. Work thro
 - The GitHub Release is accessible and its installer can be downloaded and verified against the published checksum.
 - This checkbox is marked complete only after publication succeeds and the release URL is recorded below.
 
-**Progress record:** 2026-10-12. The public source repository is available at [janmadrzyk/blur-out-pdf](https://github.com/janmadrzyk/blur-out-pdf), and the updated repository audit is recorded in `REPOSITORY_AUDIT.md`. Commit `05b7ad3` published the 1.0.1 source candidate and refreshed the README screenshot from a synthetic PDF. The [Windows build](https://github.com/janmadrzyk/blur-out-pdf/actions/runs/38279974384) passed and retained an installer artifact. The 1.0.0 candidate was not publicly released. Tagging and release publication wait for Issue 6 acceptance and the owner's release approval.
+**Progress record:** 2026-10-12. The public source repository is available at [janmadrzyk/blur-out-pdf](https://github.com/janmadrzyk/blur-out-pdf), and the updated repository audit is recorded in `REPOSITORY_AUDIT.md`. Commit `05b7ad3` published the 1.0.1 source candidate and refreshed the README screenshot. The 1.0.0 candidate was not publicly released; the owner has approved publication of 1.0.1.
 
-**Installer trust:** The owner reports a Windows Defender SmartScreen “unknown publisher” warning for `BlurOutPDF-Setup-1.0.1.exe` (2026-10-12). The installer is currently unsigned. Decide whether to distribute unsigned builds with a trust/hash verification note, pursue Authenticode signing, or distribute through the Microsoft Store before publication.
+**Installer trust:** The owner reports a Windows Defender SmartScreen “unknown publisher” warning for `BlurOutPDF-Setup-1.0.1.exe` (2026-10-12). The installer is unsigned; the owner accepts distributing this release with a SHA-256 verification note. Code signing is deferred.
 
 ## Issue 8 — Restore Windows Open with integration
 
-- [ ] **Issue 8 complete**
+- [x] **Issue 8 complete**
 
 **Discovered during:** Issue 4 manual installation checks, 2026-10-12.
 
@@ -178,13 +180,13 @@ This is the editable checklist for preparing the first public release. Work thro
 - After uninstall, BlurOut PDF is removed from those **Open with** lists.
 - Manual results are recorded on the clean Windows environment.
 
-**Completion record:** _Commit / evidence / date to be added._
+**Completion record:** 2026-10-12. Commit `93b282a` adds all eight file associations. CI run `38282940190` verified the installer's registered values, launch commands, uninstall cleanup and preservation of existing default associations. The owner confirmed that **Open with** works in the 1.0.1 Windows app. Per-format manual checks and uninstall were not repeated; CI covered registry behavior and the owner accepted the 1.0.1 installer.
 
-**Implementation progress:** 2026-10-12. Commit `93b282a` writes real named empty `REG_SZ` OpenWithProgids values for all eight supported extensions, adds the application display name and launch command, and strengthens release validation. Focused checks passed (27 passed); the full suite passed (78 passed, 1 skipped). [CI run 38279974384](https://github.com/janmadrzyk/blur-out-pdf/actions/runs/38279974384) passed its installed registry and uninstall checks. The owner reports that **Open with** works on 1.0.1; per-format results, preservation of default apps and uninstall cleanup remain to be confirmed on Windows.
+**Implementation progress:** 2026-10-12. Commit `93b282a` writes real named empty `REG_SZ` OpenWithProgids values for all eight supported extensions, adds the application display name and launch command, and strengthens release validation. Focused checks passed (27 passed); the full suite passed (78 passed, 1 skipped). Windows CI verified the 1.0.1 registrations and cleanup, and the owner confirmed that **Open with** works in the app.
 
 ## Issue 9 — Show the selection marquee in the file picker
 
-- [ ] **Issue 9 complete**
+- [x] **Issue 9 complete**
 
 **Discovered during:** Manual file selection, 2026-10-12.
 
@@ -198,6 +200,6 @@ This is the editable checklist for preparing the first public release. Work thro
 - Drag selection still selects the intended files; normal click and multi-select behavior continue to work.
 - The behavior is manually checked on Windows.
 
-**Completion record:** _Commit / evidence / date to be added._
+**Completion record:** 2026-10-12. Commit `b03777a` displays the selection marquee in both file-picker views. UI checks passed (17 passed); native rendering was checked in light and dark themes. The owner confirmed the lasso works in the 1.0.1 Windows app.
 
 **Implementation progress:** 2026-10-12. Commit `b03777a` makes the selection marquee visible in both file picker views. Native Windows rendering showed the rectangle in light and dark themes; UI checks passed (17 passed), and the full suite passed (78 passed, 1 skipped). The owner reports that the lasso works in the 1.0.1 Windows app; the result is recorded in [the lifecycle check](INSTALLER_LIFECYCLE_TEST.md).
