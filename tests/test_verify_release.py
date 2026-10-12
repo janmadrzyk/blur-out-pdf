@@ -23,11 +23,7 @@ def candidate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     (tmp_path / "packaging" / "app.ico").write_bytes(b"icon")
     (tmp_path / "dist" / "BlurOutPDF-Setup-1.0.0.exe").write_bytes(b"setup")
     (tmp_path / "packaging" / "windows.iss").write_text(
-        'SetupIconFile=app.ico\nChangesAssociations=yes\n'
-        'Source: "..\\dist\\BlurOutPDF\\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion\n'
-        'BlurOutPDF.PDF\\shell\\open\\command\n'
-        'BlurOutPDF.Raster\\shell\\open\\command\n'
-        + "".join(f'ValueName: "{suffix}";\n' for suffix in verify_release.SUPPORTED_SUFFIXES),
+        (verify_release.PROJECT / "packaging" / "windows.iss").read_text(encoding="utf-8-sig"),
         encoding="utf-8",
     )
     monkeypatch.setattr(verify_release, "_read_pe_product_version", lambda path: "1.0.0")

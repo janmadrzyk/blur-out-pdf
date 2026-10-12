@@ -90,9 +90,61 @@ def _check_installer_source(source: str) -> None:
     for declaration in required:
         if declaration not in source:
             raise ValueError(f"Installer declaration missing: {declaration}")
+    _check_installer_associations(source)
+
+
+def _installer_registry_entries(source: str) -> list[dict[str, str]]:
+    """Read registry declarations, including Inno's doubled quote escaping."""
+    entries = []
+    in_registry = False
+    parameter = re.compile(r'(\w+):\s*(?:"((?:[^"\r\n]|"")*)"|([^;\r\n]*))(?:;|$)')
+    for line in source.splitlines():
+        line = line.strip()
+        if line.startswith("["):
+            in_registry = line.lower() == "[registry]"
+        elif in_registry and line and not line.startswith(";"):
+            entries.append({
+                match[1].lower(): (match[2].replace('""', '"') if match[2] is not None else match[3].strip())
+                for match in parameter.finditer(line)
+            })
+    return entries
+
+
+def _check_installer_associations(source: str) -> None:
+    entries = _installer_registry_entries(source)
+    classes = "Software\\Classes\\"
+    application = classes + "Applications\\BlurOutPDF.exe"
+    command = '"{app}\\BlurOutPDF.exe" "%1"'
+    extension_keys = {classes.lower() + suffix for suffix in SUPPORTED_SUFFIXES}
+
+    def require(subkey: str, name: str, data: str, cleanup: str = "") -> None:
+        matches = [entry for entry in entries if (
+            entry.get("root", "").upper() == "HKCU"
+            and entry.get("subkey", "").lower() == subkey.lower()
+            and entry.get("valuename", "").lower() == name.lower()
+        )]
+        if not matches:
+            raise ValueError(f"Installer Open with integration missing: {name or subkey}")
+        if len(matches) != 1 or matches[0].get("valuetype") != "string" or matches[0].get("valuedata") != data:
+            raise ValueError(f"Installer Open with registration invalid: {subkey} ({name})")
+        if cleanup and cleanup not in matches[0].get("flags", "").split():
+            raise ValueError(f"Installer Open with uninstall cleanup missing: {subkey} ({name})")
+
+    require(application, "FriendlyAppName", "{#AppName}", "uninsdeletekey")
+    require(application + "\\shell\\open\\command", "", command)
+    for progid, description in (("BlurOutPDF.PDF", "PDF document"), ("BlurOutPDF.Raster", "Raster image")):
+        require(classes + progid, "", description, "uninsdeletekey")
+        require(classes + progid + "\\shell\\open\\command", "", command)
     for suffix in SUPPORTED_SUFFIXES:
-        if not re.search(rf'ValueName: "{re.escape(suffix)}";', source):
-            raise ValueError(f"Installer Open with integration missing: {suffix}")
+        progid = "BlurOutPDF.PDF" if suffix == ".pdf" else "BlurOutPDF.Raster"
+        require(classes + suffix + "\\OpenWithProgids", progid, "", "uninsdeletevalue")
+        require(application + "\\SupportedTypes", suffix, "")
+    for entry in entries:
+        subkey = entry.get("subkey", "").lower()
+        if "userchoice" in subkey or (subkey in extension_keys and not entry.get("valuename")):
+            raise ValueError(f"Installer must preserve the default viewer: {subkey}")
+        if subkey.startswith(classes.lower() + ".") and "uninsdeletekey" in entry.get("flags", "").split():
+            raise ValueError(f"Installer must preserve shared extension registrations: {subkey}")
 
 
 def verify_release(project: Path = PROJECT, version: str | None = None) -> Path:

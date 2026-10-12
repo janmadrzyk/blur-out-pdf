@@ -53,21 +53,24 @@ Name: "{autodesktop}\BlurOut PDF"; Filename: "{app}\BlurOutPDF.exe"; Tasks: desk
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "{cm:AdditionalShortcuts}"
 
 [Registry]
+; OpenWithProgids needs a named empty REG_SZ value. Inno's "none" only creates a key.
 Root: HKCU; Subkey: "Software\Classes\BlurOutPDF.PDF"; ValueType: string; ValueData: "PDF document"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\BlurOutPDF.PDF\DefaultIcon"; ValueType: string; ValueData: "{app}\BlurOutPDF.exe,0"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\BlurOutPDF.PDF\shell\open\command"; ValueType: string; ValueData: """{app}\BlurOutPDF.exe"" ""%1"""; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\BlurOutPDF.Raster"; ValueType: string; ValueData: "Raster image"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\BlurOutPDF.Raster\DefaultIcon"; ValueType: string; ValueData: "{app}\BlurOutPDF.exe,0"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\BlurOutPDF.Raster\shell\open\command"; ValueType: string; ValueData: """{app}\BlurOutPDF.exe"" ""%1"""; Flags: uninsdeletekey
-Root: HKCU; Subkey: "Software\Classes\.pdf\OpenWithProgids"; ValueType: none; ValueName: "BlurOutPDF.PDF"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\Applications\BlurOutPDF.exe"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "{#AppName}"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\Applications\BlurOutPDF.exe\shell\open\command"; ValueType: string; ValueData: """{app}\BlurOutPDF.exe"" ""%1"""
+Root: HKCU; Subkey: "Software\Classes\.pdf\OpenWithProgids"; ValueType: string; ValueName: "BlurOutPDF.PDF"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKCU; Subkey: "Software\Classes\Applications\BlurOutPDF.exe\SupportedTypes"; ValueType: string; ValueName: ".pdf"; ValueData: ""; Flags: uninsdeletekey
-Root: HKCU; Subkey: "Software\Classes\.jpg\OpenWithProgids"; ValueType: none; ValueName: "BlurOutPDF.Raster"; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Classes\.jpeg\OpenWithProgids"; ValueType: none; ValueName: "BlurOutPDF.Raster"; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Classes\.png\OpenWithProgids"; ValueType: none; ValueName: "BlurOutPDF.Raster"; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Classes\.tif\OpenWithProgids"; ValueType: none; ValueName: "BlurOutPDF.Raster"; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Classes\.tiff\OpenWithProgids"; ValueType: none; ValueName: "BlurOutPDF.Raster"; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Classes\.bmp\OpenWithProgids"; ValueType: none; ValueName: "BlurOutPDF.Raster"; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Classes\.webp\OpenWithProgids"; ValueType: none; ValueName: "BlurOutPDF.Raster"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\.jpg\OpenWithProgids"; ValueType: string; ValueName: "BlurOutPDF.Raster"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\.jpeg\OpenWithProgids"; ValueType: string; ValueName: "BlurOutPDF.Raster"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\.png\OpenWithProgids"; ValueType: string; ValueName: "BlurOutPDF.Raster"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\.tif\OpenWithProgids"; ValueType: string; ValueName: "BlurOutPDF.Raster"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\.tiff\OpenWithProgids"; ValueType: string; ValueName: "BlurOutPDF.Raster"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\.bmp\OpenWithProgids"; ValueType: string; ValueName: "BlurOutPDF.Raster"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\.webp\OpenWithProgids"; ValueType: string; ValueName: "BlurOutPDF.Raster"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKCU; Subkey: "Software\Classes\Applications\BlurOutPDF.exe\SupportedTypes"; ValueType: string; ValueName: ".jpg"; ValueData: ""; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\Applications\BlurOutPDF.exe\SupportedTypes"; ValueType: string; ValueName: ".jpeg"; ValueData: ""
 Root: HKCU; Subkey: "Software\Classes\Applications\BlurOutPDF.exe\SupportedTypes"; ValueType: string; ValueName: ".png"; ValueData: ""
