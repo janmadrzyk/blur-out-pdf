@@ -1,3 +1,3 @@
 """Authoritative application version for source and release builds."""
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"

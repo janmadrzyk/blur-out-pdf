@@ -1,16 +1,20 @@
 # Installer lifecycle check on a clean Windows machine
 
-The `packaging/build_lifecycle_fixtures.ps1` script builds a test-only `0.9.0` installer from the current source, alongside the real `1.0.0` candidate. `0.9.0` is a synthetic predecessor for checking installer behavior, not a historical release. The script prints a folder containing both installers, `SHA256.txt`, and synthetic `sample.pdf`, `sample.jpg`, `sample.jpeg`, `sample.png`, `sample.tif`, `sample.tiff`, `sample.bmp`, and `sample.webp`. Never publish the `TEST-ONLY` installer.
+The `packaging/build_lifecycle_fixtures.ps1` script builds test-only `0.9.0` and `1.0.0` installers from the current source, alongside the real candidate identified by `src/blurout_pdf/_version.py` (currently `1.0.1`). These are synthetic predecessors for checking installer behavior, not historical releases or copies of earlier candidate binaries. The script prints a folder containing all three installers, `SHA256.txt`, and synthetic `sample.pdf`, `sample.jpg`, `sample.jpeg`, `sample.png`, `sample.tif`, `sample.tiff`, `sample.bmp`, and `sample.webp`. Never publish the `TEST-ONLY` installers.
 
 The installer lists English first and Polish second in `packaging/windows.iss`. On a first install, it uses Inno Setup's default language detection, which follows the Windows UI language; if that language is unsupported, English is selected as the first listed language. A language selection dialog lets the user override the detected language. Thus Polish Windows selects Polish, while English or unsupported-language Windows selects English on first install. Inno Setup's default `UsePreviousLanguage=yes` setting means later runs may use the language selected during the previous installation. See [Inno Setup's language selection rules](https://jrsoftware.org/ishelp/topic_languagessection.htm) and [UsePreviousLanguage](https://jrsoftware.org/ishelp/topic_setup_usepreviouslanguage.htm).
 
-Run the following from the project root after building the 1.0.0 installer:
+Run the following from the project root after building the current candidate installer:
 
 ```powershell
 .\packaging\build_lifecycle_fixtures.ps1 -InnoCompiler (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe")
 ```
 
 Copy the files from the printed `installers` folder to a clean Windows VM or snapshot. Use the same Windows user throughout. Check the SHA-256 values before testing. Record the Windows version, VM snapshot, installer hashes, date, and the results below. A real user document is unnecessary.
+
+## Earlier 1.0.0 candidate results
+
+These observations apply to the previous candidate. They do not accept the new 1.0.1 artifact.
 
 | Path | Steps | Expected result | Result |
 | --- | --- | --- | --- |
@@ -26,3 +30,19 @@ The same-version and downgrade messages were not repeated interactively in both 
 Do not mark Issue 4 complete until all rows have recorded observations from the clean environment. Any failure needs a fix, a new installer build, and a repeat of the affected rows.
 
 Owner-reported results above are recorded separately from unverified expectations. The 0.9.0 app launch, About version/link, opening each sample, running-app cancellation, upgrade with preference preservation, the same-version message, and downgrade refusal with preserved version/preferences are confirmed. Uninstall removed the app entry and files but left an empty install directory; Open with cleanup could not be checked because the app was absent from the menu beforehand. Windows Open with integration failed and is tracked in Issue 8. Remaining lifecycle checks still need a result.
+
+## Current 1.0.1 candidate checks
+
+Use the exact CI-built `BlurOutPDF-Setup-1.0.1.exe` and verify its checksum before running these checks. Record the candidate commit, CI run, hash and clean Windows environment with the results. Test-only 1.0.0 fixtures exercise the version gate; also check upgrade from an actual earlier 1.0.0 candidate installation when one is available.
+
+| Path | Steps and expected result | Result |
+| --- | --- | --- |
+| Fresh install and Open with | Install 1.0.1 on a clean snapshot. Confirm one Installed apps entry and About version 1.0.1. Open each synthetic PDF/raster sample through **Open with → Choose another app → BlurOut PDF**; existing default viewers remain selected. | Pending. |
+| Running app | Open a synthetic sample with a pending redaction in the predecessor app. Start 1.0.1 setup and cancel the close-app prompt; the app, version and pending selection remain available. | Pending. |
+| Upgrade from 0.9.0 and 1.0.0 | On separate snapshots, install each predecessor, choose language, appearance and cover style, then install 1.0.1. Confirm one app entry, About version 1.0.1, preserved settings, untouched samples and working Open with entries. | Pending. |
+| Same version | Run 1.0.1 setup again. Confirm the already-installed message, preserved settings and one app entry. | Pending. |
+| Downgrade | Run each TEST-ONLY predecessor installer after 1.0.1 is installed. Confirm refusal while version 1.0.1 and settings remain intact. | Pending. |
+| File picker selection | In the 1.0.1 app, choose **Open**, drag across synthetic files and confirm a visible selection marquee, the intended selection, and normal click/multi-select behavior. | Pending. |
+| Uninstall | Uninstall 1.0.1. Confirm the app entry and app-owned files/registrations disappear, including all Open with entries. Confirm external samples remain. Check whether the install directory is removed or remains empty and record the outcome. | Pending. |
+
+Complete these observations and the application acceptance checks in Issue 6 before tagging or publishing the candidate.

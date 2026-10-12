@@ -43,7 +43,7 @@ Python 3.11+, PySide6, PyMuPDF and Pillow. PyInstaller builds a Windows app dire
 
 ## Release 1.0 plan and decisions
 
-The first public release targets version **1.0.0**. Version information should have one authoritative source and appear consistently in the application, Windows executable metadata, installer, documentation, changelog and Git tag `v1.0.0`. The version and license must be visible from an About dialog. This section defines the target release; it does not imply that version 1.0.0 has already shipped.
+The first public release currently targets version **1.0.1**, superseding the unpublished 1.0.0 candidate and allowing its test installations to upgrade. Version information should have one authoritative source and appear consistently in the application, Windows executable metadata, installer, documentation, changelog and Git tag `v1.0.1`. The version and license must be visible from an About dialog. This section defines the target release; it does not imply that either candidate has already shipped.
 
 OCR remains optional and uses compatible language data already available on the user's computer. The installer will not bundle or download OCR models. Search of text embedded in a PDF remains available without OCR; searching text in scanned pages depends on the local OCR engine and the selected language data. Missing OCR support should be reported through the existing bottom status-bar message, without interrupting ordinary document reading or embedded-text search. The README must explain this distinction, local dependency and language selection clearly.
 

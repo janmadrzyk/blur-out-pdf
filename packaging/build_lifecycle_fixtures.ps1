@@ -3,12 +3,16 @@ param([Parameter(Mandatory = $true)][string]$InnoCompiler)
 $ErrorActionPreference = "Stop"
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $python = Join-Path $projectRoot ".venv\Scripts\python.exe"
-$candidate = Join-Path $projectRoot "dist\BlurOutPDF-Setup-1.0.0.exe"
 if (-not (Test-Path -LiteralPath $python)) { throw "Missing project Python environment." }
+$versionSource = Join-Path $projectRoot "src\blurout_pdf\_version.py"
+$candidateVersion = (& $python -c "import runpy, sys; print(runpy.run_path(sys.argv[1])['VERSION'])" $versionSource)
+if ($LASTEXITCODE -ne 0) { throw "Could not read the application version." }
+$candidateVersion = $candidateVersion.Trim()
+$candidate = Join-Path $projectRoot "dist\BlurOutPDF-Setup-$candidateVersion.exe"
 if (-not (Test-Path -LiteralPath $InnoCompiler)) { throw "Inno Setup compiler not found." }
-if (-not (Test-Path -LiteralPath $candidate)) { throw "Build the 1.0.0 installer first." }
-if ((Get-Item -LiteralPath $candidate).VersionInfo.ProductVersion.Trim() -ne "1.0.0") {
-    throw "The release candidate installer does not report version 1.0.0."
+if (-not (Test-Path -LiteralPath $candidate)) { throw "Build the $candidateVersion installer first." }
+if ((Get-Item -LiteralPath $candidate).VersionInfo.ProductVersion.Trim() -ne $candidateVersion) {
+    throw "The release candidate installer does not report version $candidateVersion."
 }
 
 # Keep synthetic installers out of dist/ so they cannot be mistaken for releases.
@@ -16,7 +20,7 @@ $runRoot = Join-Path $projectRoot (".pytest-temp\issue4-fixtures\" + [guid]::New
 $outputRoot = Join-Path $runRoot "installers"
 New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
 
-foreach ($fixtureVersion in @("0.9.0")) {
+foreach ($fixtureVersion in @("0.9.0", "1.0.0")) {
     $fixtureRoot = Join-Path $runRoot ("source-" + $fixtureVersion)
     New-Item -ItemType Directory -Path $fixtureRoot -Force | Out-Null
     foreach ($name in @("src", "scripts", "packaging", "licenses", "run.py", "LICENSE", "THIRD_PARTY_NOTICES.md")) {
